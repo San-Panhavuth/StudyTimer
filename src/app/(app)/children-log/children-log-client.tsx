@@ -149,7 +149,7 @@ export default function ChildrenLogClient({
               <circle cx="12" cy="8" r="4"></circle>
               <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"></path>
             </svg>
-            <span>{selectedChild?.childDisplayName ?? "Select Child"}</span>
+            <span>{selectedChild?.childEmail ?? "Select Child"}</span>
           </button>
         </div>
       </div>
@@ -244,7 +244,7 @@ export default function ChildrenLogClient({
           {linkedChildren.map((c) => (
             <div key={c.childId} className="sheet-row">
               <button type="button" className="sheet-row-main" onClick={() => selectChild(c.childId)}>
-                <span>{c.childDisplayName}</span>
+                <span>{c.childEmail}</span>
               </button>
             </div>
           ))}
