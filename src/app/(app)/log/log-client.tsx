@@ -165,7 +165,9 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
                 <div className="session-card" key={s.id}>
                   <div className="session-top">
                     <span className="session-subject">{s.subject}</span>
-                    <span className="session-date">{fmtDateRange(s.startTs, s.endTs)}</span>
+                    <span className="session-date" suppressHydrationWarning>
+                      {fmtDateRange(s.startTs, s.endTs)}
+                    </span>
                     <button
                       type="button"
                       className="icon-btn danger"
