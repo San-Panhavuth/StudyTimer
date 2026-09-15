@@ -275,23 +275,6 @@ svg.icon {
   border-radius: 50%;
   background: currentColor;
 }
-.live-progress {
-  width: 100%;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--rest);
-  overflow: hidden;
-  display: flex;
-  visibility: hidden;
-}
-.live-progress.shown {
-  visibility: visible;
-}
-.lp-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.3s ease;
-}
 .status-pill.live {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);

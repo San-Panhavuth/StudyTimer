@@ -49,8 +49,6 @@ export default function TimerClient({
     breakSec = totalBreakSec + ongoing;
     studySec = Math.max(0, (now - active.startTs) / 1000 - breakSec);
   }
-  const totalSec = studySec + breakSec;
-  const studyPct = totalSec > 0 ? (studySec / totalSec) * 100 : 0;
   const onBreak = active?.status === "break";
 
   function pickSubject(subjectId: string, subjectName: string) {
@@ -158,9 +156,6 @@ export default function TimerClient({
         {onBreak ? "On Break" : active ? "Studying" : "Idle"}
       </div>
 
-      <div className={`live-progress${active ? " shown" : ""}`}>
-        <div className="lp-fill" style={{ width: `${studyPct.toFixed(1)}%` }}></div>
-      </div>
 
       <div className="subject-name">{active ? active.subject : " "}</div>
       <div className="big-time">{fmtHMS(onBreak ? breakSec : studySec)}</div>
