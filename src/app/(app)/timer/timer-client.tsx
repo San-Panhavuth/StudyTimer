@@ -193,7 +193,7 @@ export default function TimerClient({
                 <rect x="14" y="4" width="4" height="16"></rect>
               </svg>
             )}
-            {onBreak ? "Resume" : "Break"}
+            {onBreak ? "Study" : "Break"}
           </button>
           <button className="btn btn-stop" onClick={() => setConfirmOpen(true)} disabled={pending}>
             <svg className="icon" viewBox="0 0 24 24">
