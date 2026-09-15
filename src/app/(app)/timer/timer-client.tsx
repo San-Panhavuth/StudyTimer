@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
 import { fmtHMS, fmtMin } from "@/lib/format";
-import type { ActiveSession, Subject } from "@/lib/data/types";
+import type { Subject } from "@/lib/data/types";
+import { useActiveSession } from "@/components/active-session-provider";
 import {
   addSubjectAction,
   deleteSubjectAction,
@@ -13,23 +14,12 @@ import {
   toggleBreakAction,
 } from "../actions";
 
-export default function TimerClient({
-  initialSubjects,
-  initialActiveSession,
-  serverNow,
-}: {
-  initialSubjects: Subject[];
-  initialActiveSession: ActiveSession | null;
-  serverNow: number;
-}) {
+export default function TimerClient({ initialSubjects }: { initialSubjects: Subject[] }) {
   const [subjects, setSubjects] = useState(initialSubjects);
-  const [active, setActive] = useState(initialActiveSession);
-  // Seeded with the server's own Date.now() (passed as a prop, so it's the
-  // exact same number on the server render and the first client paint —
-  // no hydration mismatch) instead of starting at null. That used to draw
-  // 00:00:00 for a frame before the mount effect kicked in, which read as
-  // "the timer reset" on every refresh.
-  const [now, setNow] = useState<number>(serverNow);
+  // Lives in ActiveSessionProvider (at the layout level) rather than here,
+  // so the countdown keeps ticking in the background even when you
+  // navigate away from the Timer page — see studying-badge.tsx.
+  const { active, setActive, now } = useActiveSession();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -40,13 +30,6 @@ export default function TimerClient({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setNow(Date.now());
-    if (!active) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [active]);
 
   let studySec = 0;
   let breakSec = 0;
@@ -64,7 +47,6 @@ export default function TimerClient({
     startTransition(async () => {
       try {
         const session = await startSessionAction(subjectId, subjectName);
-        setNow(Date.now());
         setActive(session);
       } catch {
         setError("Couldn't start the timer. Try again.");
@@ -137,7 +119,6 @@ export default function TimerClient({
     startTransition(async () => {
       try {
         const session = await toggleBreakAction(active);
-        setNow(Date.now());
         setActive(session);
       } catch {
         setError("Couldn't update the break. Try again.");
