@@ -11,7 +11,7 @@ export default async function TimerPage() {
   return (
     <section className="panel">
       <div className="timer-stage">
-        <TimerClient initialSubjects={subjects} initialActiveSession={activeSession} />
+        <TimerClient initialSubjects={subjects} initialActiveSession={activeSession} serverNow={Date.now()} />
       </div>
     </section>
   );

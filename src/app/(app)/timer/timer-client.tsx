@@ -16,13 +16,20 @@ import {
 export default function TimerClient({
   initialSubjects,
   initialActiveSession,
+  serverNow,
 }: {
   initialSubjects: Subject[];
   initialActiveSession: ActiveSession | null;
+  serverNow: number;
 }) {
   const [subjects, setSubjects] = useState(initialSubjects);
   const [active, setActive] = useState(initialActiveSession);
-  const [now, setNow] = useState<number | null>(null);
+  // Seeded with the server's own Date.now() (passed as a prop, so it's the
+  // exact same number on the server render and the first client paint —
+  // no hydration mismatch) instead of starting at null. That used to draw
+  // 00:00:00 for a frame before the mount effect kicked in, which read as
+  // "the timer reset" on every refresh.
+  const [now, setNow] = useState<number>(serverNow);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -43,7 +50,7 @@ export default function TimerClient({
 
   let studySec = 0;
   let breakSec = 0;
-  if (active && now !== null) {
+  if (active) {
     const totalBreakSec = active.breakIntervals.reduce((sum, b) => sum + (b.end - b.start) / 1000, 0);
     const ongoing = active.status === "break" && active.breakStart ? (now - active.breakStart) / 1000 : 0;
     breakSec = totalBreakSec + ongoing;
