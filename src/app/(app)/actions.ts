@@ -98,38 +98,39 @@ export async function startSessionAction(subjectId: string, subjectName: string)
   };
 }
 
-export async function toggleBreakAction(): Promise<ActiveSession> {
+// toggleBreakAction and stopSessionAction take the caller's current
+// ActiveSession instead of re-SELECTing it from the DB first — the client
+// (timer-client.tsx) already holds the authoritative current state (it's
+// exactly what these actions themselves last returned), so the old
+// SELECT-then-UPDATE pattern was paying for a network round trip to fetch
+// data the caller already had. Cuts each action from 3 round trips
+// (auth + select + update) to 2 (auth + update).
+
+export async function toggleBreakAction(current: ActiveSession): Promise<ActiveSession> {
   const supabase = await createClient();
   const userId = await requireUserId();
 
-  const { data: row, error: fetchError } = await supabase
-    .from("active_session")
-    .select("subject_id, subject_name, start_ts, break_intervals, break_start, status")
-    .eq("user_id", userId)
-    .single();
-
-  if (fetchError) throw fetchError;
-
-  const breakIntervals = Array.isArray(row.break_intervals)
-    ? (row.break_intervals as { start: string; end: string }[])
-    : [];
+  const breakIntervals = current.breakIntervals.map((b) => ({
+    start: new Date(b.start).toISOString(),
+    end: new Date(b.end).toISOString(),
+  }));
 
   let nextStatus: "running" | "break";
   let nextBreakStart: string | null;
   let nextIntervals = breakIntervals;
 
-  if (row.status === "break") {
+  if (current.status === "break") {
     nextStatus = "running";
     nextBreakStart = null;
-    if (row.break_start) {
-      nextIntervals = [...breakIntervals, { start: row.break_start, end: new Date().toISOString() }];
+    if (current.breakStart) {
+      nextIntervals = [...breakIntervals, { start: new Date(current.breakStart).toISOString(), end: new Date().toISOString() }];
     }
   } else {
     nextStatus = "break";
     nextBreakStart = new Date().toISOString();
   }
 
-  const { error: updateError } = await supabase
+  const { error } = await supabase
     .from("active_session")
     .update({
       status: nextStatus,
@@ -139,52 +140,44 @@ export async function toggleBreakAction(): Promise<ActiveSession> {
     })
     .eq("user_id", userId);
 
-  if (updateError) throw updateError;
+  if (error) throw error;
 
   return {
-    subjectId: row.subject_id,
-    subject: row.subject_name,
-    startTs: new Date(row.start_ts).getTime(),
+    subjectId: current.subjectId,
+    subject: current.subject,
+    startTs: current.startTs,
     breakIntervals: nextIntervals.map((b) => ({ start: new Date(b.start).getTime(), end: new Date(b.end).getTime() })),
     breakStart: nextBreakStart ? new Date(nextBreakStart).getTime() : null,
     status: nextStatus,
   };
 }
 
-export async function stopSessionAction(): Promise<void> {
+export async function stopSessionAction(current: ActiveSession): Promise<void> {
   const supabase = await createClient();
   const userId = await requireUserId();
 
-  const { data: row, error: fetchError } = await supabase
-    .from("active_session")
-    .select("subject_id, subject_name, start_ts, break_intervals, break_start, status")
-    .eq("user_id", userId)
-    .single();
-
-  if (fetchError) throw fetchError;
-
   const now = new Date();
-  const breakIntervals: { start: string; end: string }[] = Array.isArray(row.break_intervals)
-    ? [...(row.break_intervals as { start: string; end: string }[])]
-    : [];
+  const breakIntervals = current.breakIntervals.map((b) => ({
+    start: new Date(b.start).toISOString(),
+    end: new Date(b.end).toISOString(),
+  }));
 
-  if (row.status === "break" && row.break_start) {
-    breakIntervals.push({ start: row.break_start, end: now.toISOString() });
+  if (current.status === "break" && current.breakStart) {
+    breakIntervals.push({ start: new Date(current.breakStart).toISOString(), end: now.toISOString() });
   }
 
   const totalBreakSec = breakIntervals.reduce(
     (sum, b) => sum + (new Date(b.end).getTime() - new Date(b.start).getTime()) / 1000,
     0,
   );
-  const startTs = new Date(row.start_ts);
-  const totalSec = (now.getTime() - startTs.getTime()) / 1000;
+  const totalSec = (now.getTime() - current.startTs) / 1000;
   const studySec = Math.max(0, totalSec - totalBreakSec);
 
   const { error: insertError } = await supabase.from("sessions").insert({
     user_id: userId,
-    subject_id: row.subject_id,
-    subject_name: row.subject_name,
-    start_ts: row.start_ts,
+    subject_id: current.subjectId,
+    subject_name: current.subject,
+    start_ts: new Date(current.startTs).toISOString(),
     end_ts: now.toISOString(),
     study_seconds: Math.round(studySec),
     break_seconds: Math.round(totalBreakSec),

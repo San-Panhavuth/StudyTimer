@@ -125,10 +125,11 @@ export default function TimerClient({
   }
 
   function handleBreakToggle() {
+    if (!active) return;
     setError(null);
     startTransition(async () => {
       try {
-        const session = await toggleBreakAction();
+        const session = await toggleBreakAction(active);
         setNow(Date.now());
         setActive(session);
       } catch {
@@ -138,10 +139,11 @@ export default function TimerClient({
   }
 
   function handleConfirmStop() {
+    if (!active) return;
     setConfirmOpen(false);
     startTransition(async () => {
       try {
-        await stopSessionAction();
+        await stopSessionAction(active);
         setActive(null);
       } catch {
         setError("Couldn't save that session. Try again.");
