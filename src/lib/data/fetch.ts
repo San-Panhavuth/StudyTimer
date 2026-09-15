@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { ActiveSession, StudySession, Subject } from "./types";
 
@@ -14,22 +15,30 @@ const DEFAULT_SUBJECTS = [
   "Extra",
 ];
 
-export async function requireUserId() {
+// `getUser()` makes a network round-trip to Supabase Auth to revalidate the
+// token. Every fetch helper below needs it, and several run in parallel
+// within the same request (layout + page), so without memoizing we were
+// paying for that round-trip 3-4x per navigation. `cache()` dedupes it to
+// once per request.
+const getAuthUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  return user;
+});
+
+export async function requireUserId() {
+  const user = await getAuthUser();
   if (!user) throw new Error("Not authenticated");
   return user.id;
 }
 
 export async function getProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return null;
 
+  const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
 
   return {

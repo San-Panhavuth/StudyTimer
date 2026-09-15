@@ -53,6 +53,12 @@ html,
 body {
   height: 100%;
 }
+html {
+  /* Reserve scrollbar space always, so pages with/without a vertical
+     scrollbar (e.g. Timer vs Log) don't shift the centered column
+     sideways when switching tabs. */
+  scrollbar-gutter: stable;
+}
 body {
   margin: 0;
   background: var(--bg);
@@ -201,6 +207,20 @@ svg.icon {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 16px;
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeletonWave 1.3s ease infinite;
+  border-radius: 8px;
+}
+@keyframes skeletonWave {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 .card h2 {
   margin: 0 0 12px;

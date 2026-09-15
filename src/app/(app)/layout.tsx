@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="khmer">វេលារៀន</span>
           <span className="latin">Velea Rien</span>
         </div>
-        <ProfileMenu displayName={profile.displayName} />
+        <ProfileMenu displayName={profile.email || profile.displayName} />
       </header>
 
       <div className="krama-rule"></div>
