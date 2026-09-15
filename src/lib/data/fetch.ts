@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { ActiveSession, StudySession, Subject } from "./types";
+import type { ActiveSession, LinkedChild, PendingLinkRequest, Profile, StudySession, Subject } from "./types";
 
 const DEFAULT_SUBJECTS = [
   "Khmer",
@@ -34,17 +34,94 @@ export async function requireUserId() {
   return user.id;
 }
 
-export async function getProfile() {
+export const getProfile = cache(async function getProfile(): Promise<Profile | null> {
   const user = await getAuthUser();
   if (!user) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name, role, child_code")
+    .eq("id", user.id)
+    .maybeSingle();
 
   return {
     email: user.email ?? "",
     displayName: data?.display_name ?? "Guest",
+    role: data?.role === "parent" ? "parent" : "child",
+    childCode: data?.child_code ?? null,
   };
+});
+
+export async function getPendingLinkRequests(): Promise<PendingLinkRequest[]> {
+  const supabase = await createClient();
+  await requireUserId();
+
+  const { data, error } = await supabase.rpc("get_pending_link_requests");
+  if (error) throw error;
+
+  type Row = { link_id: string; parent_id: string; parent_email: string; parent_display_name: string; created_at: string };
+  return ((data ?? []) as Row[]).map((r) => ({
+    linkId: r.link_id,
+    parentId: r.parent_id,
+    parentEmail: r.parent_email,
+    parentDisplayName: r.parent_display_name,
+    createdAt: new Date(r.created_at).getTime(),
+  }));
+}
+
+export async function getLinkedChildren(): Promise<LinkedChild[]> {
+  const supabase = await createClient();
+  await requireUserId();
+
+  const { data, error } = await supabase.rpc("get_linked_children");
+  if (error) throw error;
+
+  type Row = { link_id: string; child_id: string; child_email: string; child_display_name: string; status: string; created_at: string };
+  return ((data ?? []) as Row[]).map((r) => ({
+    linkId: r.link_id,
+    childId: r.child_id,
+    childEmail: r.child_email,
+    childDisplayName: r.child_display_name,
+    status: r.status as "pending" | "approved" | "rejected",
+    createdAt: new Date(r.created_at).getTime(),
+  }));
+}
+
+function mapSessionRow(s: {
+  id: string;
+  subject_id: string;
+  subject_name: string;
+  start_ts: string;
+  end_ts: string;
+  study_seconds: number;
+  break_seconds: number;
+}): StudySession {
+  return {
+    id: s.id,
+    subjectId: s.subject_id,
+    subject: s.subject_name,
+    startTs: new Date(s.start_ts).getTime(),
+    endTs: new Date(s.end_ts).getTime(),
+    studySeconds: s.study_seconds,
+    breakSeconds: s.break_seconds,
+  };
+}
+
+// RLS (sessions_select_as_approved_parent) enforces that the caller is
+// actually an approved parent of childId — this just runs the query.
+export async function getChildSessions(childId: string): Promise<StudySession[]> {
+  const supabase = await createClient();
+  await requireUserId();
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds")
+    .eq("user_id", childId)
+    .order("start_ts", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapSessionRow);
 }
 
 export async function getSubjects(): Promise<Subject[]> {
@@ -115,14 +192,5 @@ export async function getSessions(): Promise<StudySession[]> {
     .order("start_ts", { ascending: false });
 
   if (error) throw error;
-
-  return (data ?? []).map((s) => ({
-    id: s.id,
-    subjectId: s.subject_id,
-    subject: s.subject_name,
-    startTs: new Date(s.start_ts).getTime(),
-    endTs: new Date(s.end_ts).getTime(),
-    studySeconds: s.study_seconds,
-    breakSeconds: s.break_seconds,
-  }));
+  return (data ?? []).map(mapSessionRow);
 }

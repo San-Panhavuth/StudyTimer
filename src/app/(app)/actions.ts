@@ -1,8 +1,54 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireUserId } from "@/lib/data/fetch";
-import type { ActiveSession, Subject } from "@/lib/data/types";
+import { getChildSessions, requireUserId } from "@/lib/data/fetch";
+import type { ActiveSession, StudySession, Subject } from "@/lib/data/types";
+
+export async function fetchChildSessionsAction(childId: string): Promise<StudySession[]> {
+  return getChildSessions(childId);
+}
+
+export async function requestLinkChildAction(code: string): Promise<{ displayName: string }> {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) throw new Error("Enter a child code.");
+
+  const supabase = await createClient();
+  const userId = await requireUserId();
+
+  const { data: found, error: resolveError } = await supabase.rpc("resolve_child_code", { p_code: trimmed });
+  if (resolveError) throw resolveError;
+
+  const child = found?.[0];
+  if (!child) throw new Error("No child account found with that code.");
+  if (child.id === userId) throw new Error("You can't link to your own account.");
+
+  const { error } = await supabase.from("parent_child_links").insert({
+    parent_id: userId,
+    child_id: child.id,
+    status: "pending",
+  });
+
+  if (error) {
+    if (error.code === "23505") throw new Error("You've already sent a request to this child.");
+    throw error;
+  }
+
+  return { displayName: child.display_name };
+}
+
+export async function respondToLinkRequestAction(linkId: string, approve: boolean): Promise<void> {
+  const supabase = await createClient();
+  await requireUserId();
+
+  // RLS (links_update_as_child) already restricts this to requests aimed
+  // at the caller — no extra filter needed for correctness, just clarity.
+  const { error } = await supabase
+    .from("parent_child_links")
+    .update({ status: approve ? "approved" : "rejected", responded_at: new Date().toISOString() })
+    .eq("id", linkId);
+
+  if (error) throw error;
+}
 
 export async function addSubjectAction(name: string): Promise<Subject> {
   const trimmed = name.trim();

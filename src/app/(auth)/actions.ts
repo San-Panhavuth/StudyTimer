@@ -28,6 +28,7 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const role = formData.get("role") === "parent" ? "parent" : "child";
 
   if (!email || !password) return { error: "Enter an email and password." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
@@ -39,7 +40,7 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${origin}/timer` },
+    options: { emailRedirectTo: `${origin}/timer`, data: { role } },
   });
 
   if (error) return { error: friendlyError(error.message) };
