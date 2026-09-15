@@ -73,10 +73,14 @@ describe("computePieEntries", () => {
     ]);
   });
 
-  it("includes break time only when includeBreak is true", () => {
+  it("adds break as its own entry, not merged into the subject, when includeBreak is true", () => {
     const sessions = [mkSession({ subject: "Math", studySeconds: 600, breakSeconds: 300 })];
-    expect(computePieEntries(sessions, false)[0].minutes).toBe(10);
-    expect(computePieEntries(sessions, true)[0].minutes).toBe(15);
+    expect(computePieEntries(sessions, false)).toEqual([{ label: "Math", minutes: 10, color: expect.any(String) }]);
+    const withBreak = computePieEntries(sessions, true);
+    expect(withBreak).toEqual([
+      { label: "Math", minutes: 10, color: expect.any(String) },
+      { label: "Break", minutes: 5, color: expect.any(String) },
+    ]);
   });
 
   it("excludes subjects with zero total time", () => {
@@ -96,46 +100,29 @@ describe("computePieEntries", () => {
 describe("computeBarWeeks", () => {
   it("defaults to an 8-week span ending on the current week when no range is set", () => {
     const now = new Date(2026, 8, 15).getTime(); // Tuesday
-    const weeks = computeBarWeeks([], { subjects: [], startDate: null, endDate: null }, false, now);
+    const weeks = computeBarWeeks([], { subjects: [], startDate: null, endDate: null }, now);
     expect(weeks).toHaveLength(8);
   });
 
-  it("buckets a session's study minutes into the correct week", () => {
+  it("buckets a session's study and break minutes separately into the correct week", () => {
     const now = new Date(2026, 8, 15).getTime();
     const sessionInThisWeek = mkSession({
       startTs: new Date(2026, 8, 14).getTime(),
       studySeconds: 1200,
-      breakSeconds: 0,
+      breakSeconds: 600,
     });
-    const weeks = computeBarWeeks(
-      [sessionInThisWeek],
-      { subjects: [], startDate: null, endDate: null },
-      false,
-      now,
-    );
-    const total = weeks.reduce((sum, w) => sum + w.minutes, 0);
-    expect(total).toBe(20);
+    const weeks = computeBarWeeks([sessionInThisWeek], { subjects: [], startDate: null, endDate: null }, now);
+    const totalStudy = weeks.reduce((sum, w) => sum + w.studyMinutes, 0);
+    const totalBreak = weeks.reduce((sum, w) => sum + w.breakMinutes, 0);
+    expect(totalStudy).toBe(20);
+    expect(totalBreak).toBe(10);
   });
 
   it("expands the span to cover an explicit date range, capped at 26 weeks", () => {
     const now = new Date(2026, 8, 15).getTime();
     const farStart = new Date(2025, 0, 1).getTime(); // over a year back
-    const weeks = computeBarWeeks([], { subjects: [], startDate: farStart, endDate: null }, false, now);
+    const weeks = computeBarWeeks([], { subjects: [], startDate: farStart, endDate: null }, now);
     expect(weeks).toHaveLength(26);
-  });
-
-  it("respects includeBreak for weekly totals", () => {
-    const now = new Date(2026, 8, 15).getTime();
-    const session = mkSession({
-      startTs: new Date(2026, 8, 14).getTime(),
-      studySeconds: 600,
-      breakSeconds: 600,
-    });
-    const withoutBreak = computeBarWeeks([session], { subjects: [], startDate: null, endDate: null }, false, now);
-    const withBreak = computeBarWeeks([session], { subjects: [], startDate: null, endDate: null }, true, now);
-    const sum = (weeks: { minutes: number }[]) => weeks.reduce((s, w) => s + w.minutes, 0);
-    expect(sum(withoutBreak)).toBe(10);
-    expect(sum(withBreak)).toBe(20);
   });
 });
 

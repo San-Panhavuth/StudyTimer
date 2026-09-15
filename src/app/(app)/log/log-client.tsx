@@ -7,7 +7,7 @@ import BarChart from "@/components/bar-chart";
 import { fmtDate, fmtDateRange, fmtMin } from "@/lib/format";
 import { PAGE_SIZE, computeBarWeeks, computePieEntries, filterSessions, paginate } from "@/lib/log-calculations";
 import { deleteSessionAction } from "../actions";
-import type { StudySession, Subject } from "@/lib/data/types";
+import type { StudySession } from "@/lib/data/types";
 
 function toDateInputValue(ts: number) {
   const d = new Date(ts);
@@ -24,7 +24,7 @@ function fromDateInputValue(str: string): number | null {
   return date.getTime();
 }
 
-export default function LogClient({ subjects, sessions }: { subjects: Subject[]; sessions: StudySession[] }) {
+export default function LogClient({ sessions }: { sessions: StudySession[] }) {
   const [sessionList, setSessionList] = useState(sessions);
   const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<number | null>(null);
@@ -32,7 +32,6 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
   const [includeBreakOn, setIncludeBreakOn] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [filterOpen, setFilterOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [tempStart, setTempStart] = useState("");
   const [tempEnd, setTempEnd] = useState("");
@@ -44,20 +43,33 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
   const todayMax = useMemo(() => toDateInputValue(now), [now]);
 
   const filters = useMemo(() => ({ subjects: subjectFilter, startDate, endDate }), [subjectFilter, startDate, endDate]);
+  // Pie chart always shows every subject (date range only, no subject
+  // filter) so a hidden/dimmed subject can still be clicked to re-select —
+  // filtering out its slice would remove the only way back in.
+  const dateFilters = useMemo(() => ({ subjects: [], startDate, endDate }), [startDate, endDate]);
 
   function toggleSubjectFilter(name: string) {
     setSubjectFilter((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
     setCurrentPage(1);
   }
 
+  function handlePieToggle(label: string) {
+    if (label === "Break") {
+      setIncludeBreakOn((v) => !v);
+      return;
+    }
+    toggleSubjectFilter(label);
+  }
+
   const filteredSessions = useMemo(() => filterSessions(sessionList, filters), [sessionList, filters]);
+  const dateFilteredSessions = useMemo(() => filterSessions(sessionList, dateFilters), [sessionList, dateFilters]);
 
-  const pieEntries = useMemo(() => computePieEntries(filteredSessions, includeBreakOn), [filteredSessions, includeBreakOn]);
-
-  const barWeeks = useMemo(
-    () => computeBarWeeks(filteredSessions, filters, includeBreakOn, now),
-    [filteredSessions, filters, includeBreakOn, now],
+  const pieEntries = useMemo(
+    () => computePieEntries(dateFilteredSessions, includeBreakOn),
+    [dateFilteredSessions, includeBreakOn],
   );
+
+  const barWeeks = useMemo(() => computeBarWeeks(filteredSessions, filters, now), [filteredSessions, filters, now]);
 
   const sorted = useMemo(() => [...filteredSessions].sort((a, b) => b.startTs - a.startTs), [filteredSessions]);
   const { pageItems, totalPages, page } = useMemo(() => paginate(sorted, currentPage), [sorted, currentPage]);
@@ -122,19 +134,12 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
             </svg>
             <span>{dateLabel}</span>
           </button>
-          <button className="filter-fab" aria-label="Filters" onClick={() => setFilterOpen(true)}>
-            <svg className="icon" viewBox="0 0 24 24">
-              <line x1="4" y1="6" x2="20" y2="6"></line>
-              <line x1="7" y1="12" x2="17" y2="12"></line>
-              <line x1="10" y1="18" x2="14" y2="18"></line>
-            </svg>
-          </button>
         </div>
       </div>
 
       <div className="card">
         <h2>Time by Subject</h2>
-        <PieChart entries={pieEntries} />
+        <PieChart entries={pieEntries} selectedSubjects={subjectFilter} onToggleLabel={handlePieToggle} />
         <div className="chip-row">
           <button
             type="button"
@@ -148,7 +153,7 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
 
       <div className="card">
         <h2>Weekly Totals</h2>
-        <BarChart weeks={barWeeks} />
+        <BarChart weeks={barWeeks} showBreak={includeBreakOn} />
       </div>
 
       <div className="card">
@@ -229,44 +234,6 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
           </div>
         )}
       </div>
-
-      <Sheet open={filterOpen} onClose={() => setFilterOpen(false)} title="Filters">
-        <div className="option-list">
-          <button
-            className={`option-row${subjectFilter.length === 0 ? " on" : ""}`}
-            onClick={() => {
-              setSubjectFilter([]);
-              setCurrentPage(1);
-            }}
-          >
-            <span className="dot-box"></span>
-            <span className="lbl-txt">All Subjects</span>
-          </button>
-          {subjects.map((s) => (
-            <button
-              key={s.id}
-              className={`option-row${subjectFilter.includes(s.name) ? " on" : ""}`}
-              onClick={() => toggleSubjectFilter(s.name)}
-            >
-              <span className="dot-box"></span>
-              <span className="lbl-txt">{s.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <button className={`check-row${includeBreakOn ? " on" : ""}`} onClick={() => setIncludeBreakOn((v) => !v)}>
-          <span className="box">
-            <svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} fill="none">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </span>
-          Show break time in pie chart
-        </button>
-
-        <button className="sheet-close" onClick={() => setFilterOpen(false)}>
-          Done
-        </button>
-      </Sheet>
 
       <Sheet open={dateOpen} onClose={() => setDateOpen(false)} title="Date Range">
         <div className="date-field-row">

@@ -42,3 +42,7 @@ export function colorForSubject(subject: string): string {
   const hue = hashHue(subject, 0, 360);
   return `hsl(${hue} 52% 46%)`;
 }
+
+// Neutral grey used for the synthetic "Break" pie/bar entry — never derived
+// from colorForSubject since Break isn't a real subject.
+export const BREAK_COLOR = "hsl(0 0% 55%)";
