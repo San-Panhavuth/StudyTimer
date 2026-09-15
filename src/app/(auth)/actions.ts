@@ -37,13 +37,18 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   const supabase = await createClient();
   const origin = await siteOrigin();
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { emailRedirectTo: `${origin}/timer`, data: { role } },
   });
 
   if (error) return { error: friendlyError(error.message) };
+
+  // With email confirmation disabled, signUp returns an active session
+  // immediately — go straight in instead of telling the user to check an
+  // email that was never required. Confirmation still means no session yet.
+  if (data.session) redirect("/timer");
 
   return { success: "Check your email to confirm your account, then log in." };
 }
