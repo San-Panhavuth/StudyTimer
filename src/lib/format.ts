@@ -24,6 +24,14 @@ export function fmtDate(ts: number): string {
   );
 }
 
+export function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+export function fmtDateRange(startTs: number, endTs: number): string {
+  return `${fmtDate(startTs)} - ${fmtTime(endTs)}`;
+}
+
 function hashHue(str: string, base: number, spread: number): number {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 1000;

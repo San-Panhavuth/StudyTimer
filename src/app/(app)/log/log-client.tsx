@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
 import PieChart from "@/components/pie-chart";
 import BarChart from "@/components/bar-chart";
-import { fmtDate, fmtMin } from "@/lib/format";
+import { fmtDate, fmtDateRange, fmtMin } from "@/lib/format";
 import { PAGE_SIZE, computeBarWeeks, computePieEntries, filterSessions, paginate } from "@/lib/log-calculations";
 import { deleteSessionAction } from "../actions";
 import type { StudySession, Subject } from "@/lib/data/types";
@@ -155,10 +155,8 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
               return (
                 <div className="session-card" key={s.id}>
                   <div className="session-top">
-                    <div className="session-top-info">
-                      <span className="session-subject">{s.subject}</span>
-                      <span className="session-date">{fmtDate(s.startTs)}</span>
-                    </div>
+                    <span className="session-subject">{s.subject}</span>
+                    <span className="session-date">{fmtDateRange(s.startTs, s.endTs)}</span>
                     <button
                       type="button"
                       className="icon-btn danger"
