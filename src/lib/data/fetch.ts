@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { ActiveSession, LinkedChild, PendingLinkRequest, Profile, StudySession, Subject } from "./types";
+import type { ActiveSession, LinkedChild, Profile, StudySession, Subject } from "./types";
 
 const DEFAULT_SUBJECTS = [
   "Khmer",
@@ -52,23 +52,6 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
     childCode: data?.child_code ?? null,
   };
 });
-
-export async function getPendingLinkRequests(): Promise<PendingLinkRequest[]> {
-  const supabase = await createClient();
-  await requireUserId();
-
-  const { data, error } = await supabase.rpc("get_pending_link_requests");
-  if (error) throw error;
-
-  type Row = { link_id: string; parent_id: string; parent_email: string; parent_display_name: string; created_at: string };
-  return ((data ?? []) as Row[]).map((r) => ({
-    linkId: r.link_id,
-    parentId: r.parent_id,
-    parentEmail: r.parent_email,
-    parentDisplayName: r.parent_display_name,
-    createdAt: new Date(r.created_at).getTime(),
-  }));
-}
 
 export async function getLinkedChildren(): Promise<LinkedChild[]> {
   const supabase = await createClient();

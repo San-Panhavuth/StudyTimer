@@ -1,14 +1,11 @@
 import { redirect } from "next/navigation";
-import { getPendingLinkRequests, getProfile } from "@/lib/data/fetch";
+import { getProfile } from "@/lib/data/fetch";
 import ProfileMenu from "@/components/profile-menu";
 import BottomNav from "@/components/bottom-nav";
-import PendingLinkBanner from "@/components/pending-link-banner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await getProfile();
   if (!profile) redirect("/login");
-
-  const pendingRequests = profile.role === "child" ? await getPendingLinkRequests() : [];
 
   return (
     <div className="app-shell">
@@ -22,10 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="krama-rule"></div>
 
-      <main className="content">
-        {pendingRequests.length > 0 && <PendingLinkBanner initialRequests={pendingRequests} />}
-        {children}
-      </main>
+      <main className="content">{children}</main>
 
       <BottomNav role={profile.role} />
     </div>

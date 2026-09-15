@@ -18,7 +18,7 @@ export default function AddChildSheet({
   const [code, setCode] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [successEmail, setSuccessEmail] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
 
@@ -28,12 +28,13 @@ export default function AddChildSheet({
     setError(null);
     startTransition(async () => {
       try {
-        const { displayName } = await requestLinkChildAction(trimmed);
-        setSuccess(`Request sent to ${displayName}. They need to approve it before you can see their study log.`);
+        const { email } = await requestLinkChildAction(trimmed);
         setCode("");
         onRequested();
+        closeAddSheet();
+        setSuccessEmail(email);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't send that request.");
+        setError(e instanceof Error ? e.message : "Couldn't add that child.");
       }
     });
   }
@@ -73,59 +74,71 @@ export default function AddChildSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tab]);
 
-  function handleClose() {
+  function closeAddSheet() {
     setError(null);
-    setSuccess(null);
     setTab("code");
     onClose();
   }
 
   return (
-    <Sheet open={open} onClose={handleClose} title="Add a child">
-      <div className="role-toggle">
-        <button type="button" className={`role-toggle-btn${tab === "code" ? " on" : ""}`} onClick={() => setTab("code")}>
-          Enter Code
-        </button>
-        <button type="button" className={`role-toggle-btn${tab === "scan" ? " on" : ""}`} onClick={() => setTab("scan")}>
-          Scan QR
-        </button>
-      </div>
-
-      {error && (
-        <div className="auth-error" style={{ width: "100%", marginTop: 10 }}>
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="auth-success" style={{ width: "100%", marginTop: 10 }}>
-          {success}
-        </div>
-      )}
-
-      {tab === "code" ? (
-        <div className="sheet-add" style={{ marginTop: 12 }}>
-          <input
-            type="text"
-            placeholder="Child ID..."
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitCode(code);
-            }}
-          />
-          <button onClick={() => submitCode(code)} disabled={pending}>
-            Add
+    <>
+      <Sheet open={open} onClose={closeAddSheet} title="Add a child">
+        <div className="role-toggle">
+          <button type="button" className={`role-toggle-btn${tab === "code" ? " on" : ""}`} onClick={() => setTab("code")}>
+            Enter Code
+          </button>
+          <button type="button" className={`role-toggle-btn${tab === "scan" ? " on" : ""}`} onClick={() => setTab("scan")}>
+            Scan QR
           </button>
         </div>
-      ) : (
-        <div className="qr-scan-box">
-          <video ref={videoRef} muted playsInline />
-        </div>
-      )}
 
-      <button className="sheet-close" onClick={handleClose} style={{ marginTop: 12 }}>
-        Close
-      </button>
-    </Sheet>
+        {error && (
+          <div className="auth-error" style={{ width: "100%", marginTop: 10 }}>
+            {error}
+          </div>
+        )}
+
+        {tab === "code" ? (
+          <div className="sheet-add" style={{ marginTop: 12 }}>
+            <input
+              type="text"
+              placeholder="Child ID..."
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitCode(code);
+              }}
+            />
+            <button onClick={() => submitCode(code)} disabled={pending}>
+              Add
+            </button>
+          </div>
+        ) : (
+          <div className="qr-scan-box">
+            <video ref={videoRef} muted playsInline />
+          </div>
+        )}
+
+        <button className="sheet-close" onClick={closeAddSheet} style={{ marginTop: 12 }}>
+          Close
+        </button>
+      </Sheet>
+
+      <Sheet open={!!successEmail} onClose={() => setSuccessEmail(null)} title="Child added">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0" }}>
+          <div className="success-check">
+            <svg className="icon" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <p style={{ textAlign: "center" }}>
+            <b>{successEmail}</b> is linked. You can now see their study log.
+          </p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setSuccessEmail(null)}>
+          Done
+        </button>
+      </Sheet>
+    </>
   );
 }

@@ -8,7 +8,10 @@ export async function fetchChildSessionsAction(childId: string): Promise<StudySe
   return getChildSessions(childId);
 }
 
-export async function requestLinkChildAction(code: string): Promise<{ displayName: string }> {
+// Internal/family use, not a consumer product — a parent entering or
+// scanning a valid child code links immediately, no separate child
+// approval step.
+export async function requestLinkChildAction(code: string): Promise<{ email: string }> {
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) throw new Error("Enter a child code.");
 
@@ -25,28 +28,23 @@ export async function requestLinkChildAction(code: string): Promise<{ displayNam
   const { error } = await supabase.from("parent_child_links").insert({
     parent_id: userId,
     child_id: child.id,
-    status: "pending",
+    status: "approved",
+    responded_at: new Date().toISOString(),
   });
 
   if (error) {
-    if (error.code === "23505") throw new Error("You've already sent a request to this child.");
+    if (error.code === "23505") throw new Error("You've already added this child.");
     throw error;
   }
 
-  return { displayName: child.display_name };
+  return { email: child.email };
 }
 
-export async function respondToLinkRequestAction(linkId: string, approve: boolean): Promise<void> {
+export async function removeChildLinkAction(linkId: string): Promise<void> {
   const supabase = await createClient();
   await requireUserId();
 
-  // RLS (links_update_as_child) already restricts this to requests aimed
-  // at the caller — no extra filter needed for correctness, just clarity.
-  const { error } = await supabase
-    .from("parent_child_links")
-    .update({ status: approve ? "approved" : "rejected", responded_at: new Date().toISOString() })
-    .eq("id", linkId);
-
+  const { error } = await supabase.from("parent_child_links").delete().eq("id", linkId);
   if (error) throw error;
 }
 

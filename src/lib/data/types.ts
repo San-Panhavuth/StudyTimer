@@ -36,14 +36,6 @@ export type Profile = {
   childCode: string | null;
 };
 
-export type PendingLinkRequest = {
-  linkId: string;
-  parentId: string;
-  parentEmail: string;
-  parentDisplayName: string;
-  createdAt: number;
-};
-
 export type LinkedChild = {
   linkId: string;
   childId: string;

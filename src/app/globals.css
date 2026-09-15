@@ -493,6 +493,21 @@ svg.icon {
 .session-top .icon-btn {
   justify-self: end;
 }
+.child-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.child-row .session-subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.children-card {
+  margin-top: 10px;
+}
 .progress-track {
   height: 6px;
   border-radius: 3px;
@@ -1090,6 +1105,20 @@ svg.icon {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
+}
+.success-check {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.success-check svg.icon {
+  width: 28px;
+  height: 28px;
 }
 .qr-scan-box {
   margin-top: 12px;
