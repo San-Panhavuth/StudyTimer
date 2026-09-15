@@ -36,7 +36,10 @@ export default function PieChart({ entries }: { entries: PieEntry[] }) {
             data: entries.map((e) => e.minutes),
             backgroundColor: entries.map((e) => e.color),
             borderColor: surfaceColor,
-            borderWidth: 2,
+            // A single 100% slice still draws its start/end radius as a
+            // border stroke (same angle, so it looks like a stray line
+            // through the circle) — skip the border when there's only one.
+            borderWidth: entries.length > 1 ? 2 : 0,
           },
         ],
       },

@@ -135,6 +135,15 @@ export default function LogClient({ subjects, sessions }: { subjects: Subject[];
       <div className="card">
         <h2>Time by Subject</h2>
         <PieChart entries={pieEntries} />
+        <div className="chip-row">
+          <button
+            type="button"
+            className={`chip-toggle${includeBreakOn ? " on" : ""}`}
+            onClick={() => setIncludeBreakOn((v) => !v)}
+          >
+            {includeBreakOn ? "✓ Break included" : "+ Include break"}
+          </button>
+        </div>
       </div>
 
       <div className="card">
