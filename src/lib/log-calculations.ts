@@ -47,7 +47,7 @@ function dayStart(ts: number): number {
   return d.getTime();
 }
 
-export type BarWeek = { label: string; studyMinutes: number; breakMinutes: number };
+export type BarWeek = { label: string; studyMinutes: number; breakMinutes: number; isCurrent: boolean };
 
 export function computeBarWeeks(sessions: StudySession[], filters: LogFilters, now: number): BarWeek[] {
   const rangeEnd = filters.endDate != null ? filters.endDate + DAY_MS : now;
@@ -89,7 +89,12 @@ export function computeBarWeeks(sessions: StudySession[], filters: LogFilters, n
     }
   }
 
-  return weeks.map((w, i) => ({ label: w.label, studyMinutes: studyTotals[i], breakMinutes: breakTotals[i] }));
+  return weeks.map((w, i) => ({
+    label: w.label,
+    studyMinutes: studyTotals[i],
+    breakMinutes: breakTotals[i],
+    isCurrent: now >= w.start && now < w.end,
+  }));
 }
 
 export function paginate<T>(items: T[], page: number, pageSize = PAGE_SIZE): { pageItems: T[]; totalPages: number; page: number } {
