@@ -97,6 +97,21 @@ export function computeBarWeeks(sessions: StudySession[], filters: LogFilters, n
   }));
 }
 
+// Study seconds per day-of-month (1-31) for the given month (month is 0-based),
+// only for days that have any. A session counts toward the local day it
+// started on.
+export function computeStudyDays(sessions: StudySession[], year: number, month: number): Map<number, number> {
+  const days = new Map<number, number>();
+  for (const s of sessions) {
+    if (s.studySeconds <= 0) continue;
+    const d = new Date(s.startTs);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      days.set(d.getDate(), (days.get(d.getDate()) ?? 0) + s.studySeconds);
+    }
+  }
+  return days;
+}
+
 export function paginate<T>(items: T[], page: number, pageSize = PAGE_SIZE): { pageItems: T[]; totalPages: number; page: number } {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const clampedPage = Math.min(Math.max(page, 1), totalPages);

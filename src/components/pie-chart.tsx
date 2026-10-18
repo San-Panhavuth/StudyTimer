@@ -35,7 +35,6 @@ export default function PieChart({
     }
 
     const styles = getComputedStyle(document.documentElement);
-    const inkColor = styles.getPropertyValue("--ink").trim();
     const surfaceColor = styles.getPropertyValue("--surface").trim();
 
     const labels = entries.map((e) => e.label);
@@ -65,19 +64,18 @@ export default function PieChart({
             if (typeof label === "string") onToggleRef.current(label);
           },
           plugins: {
-            legend: {
-              position: "bottom",
-              labels: { color: inkColor, font: { size: 11 }, boxWidth: 10, padding: 10 },
-              onClick: (_evt, legendItem) => {
-                if (typeof legendItem.text === "string") onToggleRef.current(legendItem.text);
-              },
-            },
+            // The subject legend/filter is rendered by SubjectCard, shared with
+            // the ranking view.
+            legend: { display: false },
             tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtMin(Number(ctx.raw) * 60)}` } },
           },
         },
       });
     } else {
       const chart = chartRef.current;
+      // Keep the built-in legend off even for a chart created before it was
+      // removed (e.g. surviving a hot reload).
+      if (chart.options.plugins?.legend) chart.options.plugins.legend.display = false;
       chart.data.labels = labels;
       chart.data.datasets[0].data = data;
       chart.data.datasets[0].backgroundColor = colors;

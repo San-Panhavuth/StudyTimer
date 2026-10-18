@@ -6,45 +6,48 @@ import { fmtMin } from "@/lib/format";
 
 export type BarWeek = { label: string; studyMinutes: number; breakMinutes: number; isCurrent: boolean };
 
+// Corner radius of the bars (the current week's glow follows it).
+const BAR_RADIUS = 6;
+// How far the glow's outline sits outside the bar.
+const GLOW_OUTSET = 2;
+
 type TodayGlowOptions = { index: number | null; color: string; font: string };
 
-// Highlights the bar for the current week: a soft shadow-blur glow behind
-// it, plus a small "TODAY" label above. Registered per-chart (not
-// globally) so it only affects this component's charts.
+// Highlights the bar for the current week with a soft shadow-blur glow behind
+// it. Registered per-chart (not globally) so it only affects this
+// component's charts.
 const todayGlowPlugin: Plugin<"bar", TodayGlowOptions> = {
   id: "todayGlow",
   beforeDatasetsDraw(chart, _args, opts) {
     if (opts.index == null) return;
-    const meta = chart.getDatasetMeta(0);
-    const bar = meta.data[opts.index] as unknown as { x: number; width: number } | undefined;
-    if (!bar) return;
-    const { top, bottom } = chart.scales.y;
+    type BarEl = { x: number; y: number; base: number; width: number };
+    const study = chart.getDatasetMeta(0).data[opts.index] as unknown as BarEl | undefined;
+    const rest = chart.getDatasetMeta(1)?.data[opts.index] as unknown as BarEl | undefined;
+    if (!study) return;
+
+    // Trace the stacked bar's real silhouette (study + break together), grown
+    // by GLOW_OUTSET, so the glow hugs the bar instead of being a separate
+    // full-height column.
+    const stackTop = Math.min(study.y, rest ? rest.y : study.y);
+    const x = study.x - study.width / 2 - GLOW_OUTSET;
+    const y = stackTop - GLOW_OUTSET;
+    const w = study.width + GLOW_OUTSET * 2;
+    const h = study.base - stackTop + GLOW_OUTSET * 2;
+    const radius = BAR_RADIUS + GLOW_OUTSET;
+
     const ctx = chart.ctx;
-    const halfW = bar.width / 2 + 3;
     ctx.save();
     ctx.shadowColor = opts.color;
     ctx.shadowBlur = 16;
-    ctx.fillStyle = opts.color.replace(")", " / 45%)");
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = opts.color;
     ctx.beginPath();
     if (typeof ctx.roundRect === "function") {
-      ctx.roundRect(bar.x - halfW, top, halfW * 2, bottom - top, 6);
+      ctx.roundRect(x, y, w, h, radius);
     } else {
-      ctx.rect(bar.x - halfW, top, halfW * 2, bottom - top);
+      ctx.rect(x, y, w, h);
     }
     ctx.fill();
-    ctx.restore();
-  },
-  afterDatasetsDraw(chart, _args, opts) {
-    if (opts.index == null) return;
-    const meta = chart.getDatasetMeta(0);
-    const bar = meta.data[opts.index] as unknown as { x: number; y: number } | undefined;
-    if (!bar) return;
-    const ctx = chart.ctx;
-    ctx.save();
-    ctx.fillStyle = opts.color;
-    ctx.font = `800 9.5px ${opts.font}`;
-    ctx.textAlign = "center";
-    ctx.fillText("TODAY", bar.x, Math.max(bar.y - 8, chart.scales.y.top + 12));
     ctx.restore();
   },
 };
@@ -79,8 +82,28 @@ export default function BarChart({ weeks, showBreak }: { weeks: BarWeek[]; showB
         data: {
           labels,
           datasets: [
-            { label: "Study", data: studyData, backgroundColor: accentColor, stack: "total", borderRadius: 3 },
-            { label: "Break", data: breakData, backgroundColor: restColor, stack: "total", borderRadius: 3 },
+            {
+              label: "Study",
+              data: studyData,
+              backgroundColor: accentColor,
+              stack: "total",
+              borderSkipped: false,
+              // Study and Break stack into one bar: round only the outer ends,
+              // so the join between them is a clean straight seam.
+              borderRadius: (ctx) => {
+                const hasBreak = Number(ctx.chart.data.datasets[1]?.data[ctx.dataIndex]) > 0;
+                const top = hasBreak ? 0 : BAR_RADIUS;
+                return { topLeft: top, topRight: top, bottomLeft: BAR_RADIUS, bottomRight: BAR_RADIUS };
+              },
+            },
+            {
+              label: "Break",
+              data: breakData,
+              backgroundColor: restColor,
+              stack: "total",
+              borderSkipped: false,
+              borderRadius: { topLeft: BAR_RADIUS, topRight: BAR_RADIUS, bottomLeft: 0, bottomRight: 0 },
+            },
           ],
         },
         options: {

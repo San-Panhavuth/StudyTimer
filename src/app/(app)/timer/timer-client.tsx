@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
 import PhotoSheet from "@/components/photo-sheet";
 import { uploadSessionPhotos } from "@/lib/photos";
@@ -19,18 +18,12 @@ import {
 } from "../actions";
 
 export default function TimerClient() {
-  const router = useRouter();
   // Lives in ActiveSessionProvider (at the layout level) rather than here,
   // so the countdown keeps ticking in the background even when you
   // navigate away from the Timer page — see studying-badge.tsx. Subjects
   // live there too so switching tabs doesn't refetch or reset them.
   const { active, setActive, now, subjects: providerSubjects, setSubjects, requirePhotos } = useActiveSession();
   const subjects = useMemo(() => providerSubjects ?? [], [providerSubjects]);
-  const isParent = providerSubjects === null;
-
-  useEffect(() => {
-    if (isParent) router.replace("/children");
-  }, [isParent, router]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -205,8 +198,6 @@ export default function TimerClient() {
       }
     });
   }
-
-  if (isParent) return null;
 
   return (
     <div className={`card timer-card${onBreak ? " on-break" : ""}`}>

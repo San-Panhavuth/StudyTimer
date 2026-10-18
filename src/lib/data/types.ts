@@ -47,3 +47,12 @@ export type LinkedChild = {
   createdAt: number;
   requirePhotos: boolean;
 };
+
+// Just enough of a child's recent sessions for the parent's "studied today"
+// summary. The client sums the ones that fall on its local calendar day.
+export type RecentChildSession = {
+  childId: string;
+  subject: string;
+  startTs: number;
+  studySeconds: number;
+};

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { ActiveSession, LinkedChild, Profile, StudySession, Subject } from "./types";
+import type { ActiveSession, LinkedChild, Profile, RecentChildSession, StudySession, Subject } from "./types";
 
 const DEFAULT_SUBJECTS = [
   "Khmer",
@@ -179,6 +179,30 @@ export async function getChildSessions(childId: string): Promise<StudySession[]>
 
   if (error) throw error;
   return mapSessionsWithImages(data ?? []);
+}
+
+// Sessions that started in the last 30 hours for the given children. Whatever
+// timezone the parent is in, their local "today" began less than 24 hours ago,
+// so this window always covers it; the client does the exact day cut-off.
+export async function getRecentChildSessions(childIds: string[]): Promise<RecentChildSession[]> {
+  if (childIds.length === 0) return [];
+  const supabase = await createClient();
+  await requireUserId();
+
+  const since = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("user_id, subject_name, start_ts, study_seconds")
+    .in("user_id", childIds)
+    .gte("start_ts", since);
+
+  if (error) throw error;
+  return (data ?? []).map((s) => ({
+    childId: s.user_id,
+    subject: s.subject_name,
+    startTs: new Date(s.start_ts).getTime(),
+    studySeconds: s.study_seconds,
+  }));
 }
 
 export async function getSubjects(): Promise<Subject[]> {

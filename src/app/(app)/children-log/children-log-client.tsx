@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sheet from "@/components/sheet";
 import SessionPhotos from "@/components/session-photos";
-import PieChart from "@/components/pie-chart";
-import BarChart from "@/components/bar-chart";
+import { useChildSelection } from "@/components/child-selection";
+import SubjectCard from "@/components/subject-card";
+import LogSkeleton from "@/components/log-skeleton";
+import ProgressCard from "@/components/progress-card";
 import { fmtDateRange, fmtMin } from "@/lib/format";
 import { PAGE_SIZE, computeBarWeeks, computePieEntries, filterSessions, paginate } from "@/lib/log-calculations";
 import { fetchChildSessionsAction } from "../actions";
@@ -36,7 +38,10 @@ export default function ChildrenLogClient({
 }) {
   const [selectedChildId, setSelectedChildId] = useState(initialChildId);
   const [sessions, setSessions] = useState(initialSessions);
-  const [loading, setLoading] = useState(false);
+  // Which child `sessions` currently belongs to; while it differs from the
+  // selected child, that child's sessions are still loading.
+  const [loadedFor, setLoadedFor] = useState<string | null>(initialChildId);
+  const loading = selectedChildId !== null && loadedFor !== selectedChildId;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<number | null>(null);
@@ -52,16 +57,45 @@ export default function ChildrenLogClient({
 
   const selectedChild = linkedChildren.find((c) => c.childId === selectedChildId) ?? null;
 
+  // Fetch sessions whenever the selected child changes (or is re-requested).
+  useEffect(() => {
+    if (!selectedChildId || loadedFor === selectedChildId) return;
+    let cancelled = false;
+    fetchChildSessionsAction(selectedChildId)
+      .then((rows) => {
+        if (cancelled) return;
+        setSessions(rows);
+        setLoadedFor(selectedChildId);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedFor(selectedChildId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedChildId, loadedFor]);
+
   function selectChild(childId: string) {
     setPickerOpen(false);
     if (childId === selectedChildId) return;
     setSelectedChildId(childId);
     setSubjectFilter([]);
     setCurrentPage(1);
-    setLoading(true);
-    fetchChildSessionsAction(childId)
-      .then(setSessions)
-      .finally(() => setLoading(false));
+  }
+
+  // The Children tab can ask for a child (tap a child card). Handled while
+  // rendering, keyed on the request's nonce, so it applies exactly once.
+  // Clearing loadedFor makes it re-fetch even if that child is already shown.
+  const { requested } = useChildSelection();
+  const [seenRequest, setSeenRequest] = useState(requested.nonce);
+  if (requested.nonce !== seenRequest) {
+    setSeenRequest(requested.nonce);
+    if (requested.id && linkedChildren.some((c) => c.childId === requested.id)) {
+      setSelectedChildId(requested.id);
+      setLoadedFor(null);
+      setSubjectFilter([]);
+      setCurrentPage(1);
+    }
   }
 
   const filters = useMemo(() => ({ subjects: subjectFilter, startDate, endDate }), [subjectFilter, startDate, endDate]);
@@ -155,26 +189,23 @@ export default function ChildrenLogClient({
         </div>
       </div>
 
-      {loading && <div className="empty-note">Loading…</div>}
+      {loading ? (
+        <LogSkeleton />
+      ) : (
+        <>
+      <SubjectCard
+        entries={pieEntries}
+        selectedSubjects={subjectFilter}
+        onToggleLabel={handlePieToggle}
+        onClearSubjects={() => {
+          setSubjectFilter([]);
+          setCurrentPage(1);
+        }}
+        includeBreakOn={includeBreakOn}
+        onToggleBreak={() => setIncludeBreakOn((v) => !v)}
+      />
 
-      <div className="card">
-        <h2>Time by Subject</h2>
-        <PieChart entries={pieEntries} selectedSubjects={subjectFilter} onToggleLabel={handlePieToggle} />
-        <div className="chip-row">
-          <button
-            type="button"
-            className={`chip-toggle${includeBreakOn ? " on" : ""}`}
-            onClick={() => setIncludeBreakOn((v) => !v)}
-          >
-            {includeBreakOn ? "✓ Break included" : "+ Include break"}
-          </button>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>Weekly Totals</h2>
-        <BarChart weeks={barWeeks} showBreak={includeBreakOn} />
-      </div>
+      <ProgressCard weeks={barWeeks} showBreak={includeBreakOn} sessions={filteredSessions} now={now} />
 
       <div className="card">
         <h2>Sessions</h2>
@@ -240,6 +271,8 @@ export default function ChildrenLogClient({
           </div>
         )}
       </div>
+        </>
+      )}
 
       <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Select Child">
         <div className="sheet-list">

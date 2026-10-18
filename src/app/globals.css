@@ -167,21 +167,61 @@ svg.icon {
   gap: 14px;
   flex: 1;
   min-height: 0;
-  animation: panelIn 0.2s ease;
 }
-@keyframes panelIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+
+/* The pager already stops above the bottom nav, so drop the content's own
+   nav-height bottom padding (it would make the window scroll as well). */
+.content:has(.pager) {
+  padding-bottom: 0;
+}
+
+/* Tab pager (components/tab-pager.tsx): both tabs sit side by side in one
+   track and the whole track slides. Positioned with margin-left, not
+   transform, so position:fixed sheets inside a page still anchor to the
+   viewport. The pager is exactly the visible area (--pager-h, set from JS)
+   and each page scrolls inside its own panel, so every tab keeps its own
+   scroll position. touch-action: pan-y lets the browser keep vertical
+   scrolling while we handle horizontal swipes. */
+.pager {
+  height: var(--pager-h, calc(100dvh - 190px));
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  touch-action: pan-y;
+}
+.pager-track {
+  flex: 1;
+  width: 200%;
+  display: flex;
+  min-height: 0;
+  transition: margin-left 0.45s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.pager-panel {
+  flex: 0 0 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: 16px;
+  /* Still scrolls; just no visible scrollbar. */
+  scrollbar-width: none;
+}
+.pager-panel:focus {
+  outline: none;
+}
+.pager-panel::-webkit-scrollbar {
+  display: none;
+}
+/* Pages keep their natural height (and scroll) instead of shrinking to fit. */
+.pager-panel > .panel {
+  flex: 1 0 auto;
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel {
-    animation: none;
+  .pager-track {
+    transition: none;
   }
 }
 
@@ -687,10 +727,40 @@ svg.icon {
   display: flex;
   height: var(--nav-h);
   padding-bottom: env(safe-area-inset-bottom);
-  background-image: repeating-linear-gradient(90deg, var(--accent) 0 9px, var(--surface-2) 9px 18px);
+  /* Muted dashes across the whole bar... */
+  background-image: repeating-linear-gradient(90deg, var(--line) 0 9px, var(--surface-2) 9px 18px);
   background-size: 100% 4px;
   background-repeat: no-repeat;
   background-position: top;
+}
+/* ...and an accent-colored half that slides under the active tab. The
+   gradient is sized to the full bar width (200% of this half), so the dashes
+   stay put while the colored window moves; left and background-position
+   animate together, in step with the page slide (.pager-track). */
+.bottom-nav::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 4px;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(90deg, var(--accent) 0 9px, var(--surface-2) 9px 18px);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 0;
+  transition:
+    left 0.45s cubic-bezier(0.22, 0.8, 0.3, 1),
+    background-position 0.45s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.bottom-nav[data-active="1"]::after {
+  left: 50%;
+  background-position: 100% 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav::after {
+    transition: none;
+  }
 }
 .bottom-nav a {
   flex: 1;
@@ -731,6 +801,9 @@ svg.icon {
   justify-content: center;
   cursor: pointer;
   margin-top: -22px;
+  /* Above the bar's sliding dash indicator (.bottom-nav::after). */
+  position: relative;
+  z-index: 1;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .bottom-nav-add svg.icon {
@@ -1324,4 +1397,509 @@ svg.icon {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Progress card: weekly/monthly switch + month calendar ---------------- */
+.progress-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.progress-card-head h2 {
+  margin: 0;
+}
+.view-flip {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  padding: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.view-flip:active {
+  background: var(--surface-2);
+}
+.view-flip svg.icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.4;
+}
+/* Same height for both views so the card never resizes on switch. */
+.progress-body {
+  height: 300px;
+}
+.progress-body {
+  overflow: hidden;
+}
+.progress-view {
+  height: 100%;
+}
+/* Incoming view slides in from below (to Monthly) or above (back to Weekly). */
+.progress-view.enter-up {
+  animation: viewEnterUp 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.progress-view.enter-down {
+  animation: viewEnterDown 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+@keyframes viewEnterUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes viewEnterDown {
+  from {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.view-flip svg.icon {
+  transition: transform 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.view-flip svg.icon.turned {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-view.enter-up,
+  .progress-view.enter-down {
+    animation: none;
+  }
+  .view-flip svg.icon {
+    transition: none;
+  }
+}
+.progress-body .chart-box {
+  height: 100%;
+}
+.month-cal {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.month-nav .icon-btn[aria-disabled="true"] {
+  opacity: 0.3;
+  cursor: default;
+}
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.month-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+.month-label small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.cal-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+.cal-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  padding-bottom: 2px;
+}
+.cal-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+.cal-day b {
+  font-weight: 600;
+}
+.cal-day.future {
+  opacity: 0.4;
+}
+.cal-day.today {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+}
+.cal-day.studied {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.cal-day.studied b {
+  font-weight: 800;
+}
+.cal-tick {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+  color: var(--accent);
+}
+
+/* Subject ranking (horizontal bars, longest on top) ---------------------- */
+.rank-list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.rank-list::-webkit-scrollbar {
+  display: none;
+}
+.rank-row {
+  flex: 1 1 0;
+  min-height: 26px;
+  max-height: 38px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-manrope);
+  transition: opacity 0.15s ease;
+}
+.rank-track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+.rank-bar {
+  display: flex;
+  align-items: center;
+  min-width: max-content; /* short bars still fit their label */
+  padding: 0 10px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: width 0.4s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.rank-value {
+  flex-shrink: 0;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subject legend / filter under the Time by Subject charts --------------- */
+.subject-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin-top: 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  color: var(--ink);
+  font-family: var(--font-manrope);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.legend-item.dimmed {
+  opacity: 0.35;
+}
+.legend-item.on {
+  color: var(--accent);
+  font-weight: 800;
+}
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* "All" is a checkbox: empty outline when off, filled with a tick when on. */
+.legend-check {
+  border: 1.5px solid var(--ink-dim);
+}
+.legend-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.legend-check.checked .legend-tick {
+  color: var(--accent-ink);
+}
+.legend-tick {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3.5;
+  color: #fff;
+}
+
+/* Child cards on the Children tab open that child's log. */
+.child-card {
+  cursor: pointer;
+}
+.child-card:focus-visible {
+  outline: 1.5px solid var(--accent);
+}
+
+/* Day tooltip: hover (mouse) or focus/tap (touch, keyboard) ------------- */
+.cal-day {
+  outline: none;
+}
+.cal-day:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.cal-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  z-index: 5;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.cal-day.tip-left .cal-tip {
+  left: 0;
+  transform: translateY(3px);
+}
+.cal-day.tip-right .cal-tip {
+  left: auto;
+  right: 0;
+  transform: translateY(3px);
+}
+.cal-day:hover .cal-tip,
+.cal-day:focus .cal-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.cal-day.tip-left:hover .cal-tip,
+.cal-day.tip-left:focus .cal-tip,
+.cal-day.tip-right:hover .cal-tip,
+.cal-day.tip-right:focus .cal-tip {
+  transform: translateY(0);
+}
+
+/* Children tab: overview / settings card ------------------------------- */
+.child-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.child-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+/* Fixed height so the card doesn't resize between overview and settings. */
+.child-body {
+  height: 84px;
+  overflow: hidden;
+}
+.child-today {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.child-today-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.child-today-main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.child-today-value {
+  font-family: var(--font-mono), monospace;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.child-today-value.none {
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.child-today-latest {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.child-today-latest-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.child-today-latest-name {
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.child-today-latest-name i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.child-settings {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+.child-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.child-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  align-self: flex-end;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+  color: var(--danger);
+  font-family: var(--font-manrope);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.child-remove:active {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.child-remove svg.icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* Off | On slider: both options always visible, a thumb slides under the
+   active one. */
+.seg-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 92px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-manrope);
+}
+.seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--ink-dim);
+  transition:
+    transform 0.25s cubic-bezier(0.22, 0.8, 0.3, 1),
+    background 0.25s ease;
+}
+.seg-switch.on .seg-thumb {
+  transform: translateX(100%);
+  background: var(--accent);
+}
+.seg-opt {
+  position: relative;
+  z-index: 1;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-dim);
+  transition: color 0.25s ease;
+}
+/* The option the thumb sits under reads in the contrast color. */
+.seg-switch:not(.on) .seg-opt:nth-child(2),
+.seg-switch.on .seg-opt:nth-child(3) {
+  color: var(--accent-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-thumb,
+  .seg-opt {
+    transition: none;
+  }
 }

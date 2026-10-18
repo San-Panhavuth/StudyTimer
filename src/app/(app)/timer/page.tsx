@@ -1,15 +1,10 @@
-import TimerClient from "./timer-client";
+import { redirect } from "next/navigation";
+import { getProfile } from "@/lib/data/fetch";
 
-// No data fetching here on purpose: subjects, the active session and the
-// photo requirement come from the (app) layout via ActiveSessionProvider, so
-// switching back to this tab renders instantly instead of re-fetching.
-// (Parent accounts are redirected away client-side in TimerClient.)
-export default function TimerPage() {
-  return (
-    <section className="panel">
-      <div className="timer-stage">
-        <TimerClient />
-      </div>
-    </section>
-  );
+// The Timer UI is rendered by the (app) layout's TabPager; this page only
+// keeps parents off the child-only URL on a hard load.
+export default async function TimerPage() {
+  const profile = await getProfile();
+  if (profile?.role === "parent") redirect("/children");
+  return null;
 }

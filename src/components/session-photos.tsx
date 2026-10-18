@@ -24,7 +24,7 @@ export default function SessionPhotos({ images }: { images: string[] }) {
         </svg>
       </button>
       {open && (
-        <div className="photos-strip">
+        <div className="photos-strip" data-no-swipe>
           {images.map((url, i) => (
             <a key={url} href={url} target="_blank" rel="noreferrer" className="photos-strip-item">
               {/* eslint-disable-next-line @next/next/no-img-element */}

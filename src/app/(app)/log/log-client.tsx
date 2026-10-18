@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
 import SessionPhotos from "@/components/session-photos";
-import PieChart from "@/components/pie-chart";
-import BarChart from "@/components/bar-chart";
+import SubjectCard from "@/components/subject-card";
+import ProgressCard from "@/components/progress-card";
 import { fmtDate, fmtDateRange, fmtMin } from "@/lib/format";
 import { PAGE_SIZE, computeBarWeeks, computePieEntries, filterSessions, paginate } from "@/lib/log-calculations";
 import { deleteSessionAction } from "../actions";
@@ -27,6 +27,13 @@ function fromDateInputValue(str: string): number | null {
 
 export default function LogClient({ sessions }: { sessions: StudySession[] }) {
   const [sessionList, setSessionList] = useState(sessions);
+  // The layout re-fetches sessions each time this tab is opened (and signs
+  // fresh photo URLs); pick up the new list without resetting filters.
+  const [prevSessions, setPrevSessions] = useState(sessions);
+  if (prevSessions !== sessions) {
+    setPrevSessions(sessions);
+    setSessionList(sessions);
+  }
   const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<number | null>(null);
   const [endDate, setEndDate] = useState<number | null>(null);
@@ -138,24 +145,19 @@ export default function LogClient({ sessions }: { sessions: StudySession[] }) {
         </div>
       </div>
 
-      <div className="card">
-        <h2>Time by Subject</h2>
-        <PieChart entries={pieEntries} selectedSubjects={subjectFilter} onToggleLabel={handlePieToggle} />
-        <div className="chip-row">
-          <button
-            type="button"
-            className={`chip-toggle${includeBreakOn ? " on" : ""}`}
-            onClick={() => setIncludeBreakOn((v) => !v)}
-          >
-            {includeBreakOn ? "✓ Break included" : "+ Include break"}
-          </button>
-        </div>
-      </div>
+      <SubjectCard
+        entries={pieEntries}
+        selectedSubjects={subjectFilter}
+        onToggleLabel={handlePieToggle}
+        onClearSubjects={() => {
+          setSubjectFilter([]);
+          setCurrentPage(1);
+        }}
+        includeBreakOn={includeBreakOn}
+        onToggleBreak={() => setIncludeBreakOn((v) => !v)}
+      />
 
-      <div className="card">
-        <h2>Weekly Totals</h2>
-        <BarChart weeks={barWeeks} showBreak={includeBreakOn} />
-      </div>
+      <ProgressCard weeks={barWeeks} showBreak={includeBreakOn} sessions={filteredSessions} now={now} />
 
       <div className="card">
         <h2>Sessions</h2>

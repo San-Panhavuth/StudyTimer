@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeBarWeeks, computePieEntries, filterSessions, paginate } from "./log-calculations";
+import { computeBarWeeks, computePieEntries, computeStudyDays, filterSessions, paginate } from "./log-calculations";
 import type { StudySession } from "./data/types";
 
 function mkSession(overrides: Partial<StudySession>): StudySession {
@@ -158,5 +158,21 @@ describe("paginate", () => {
     const { totalPages, pageItems } = paginate([], 1);
     expect(totalPages).toBe(1);
     expect(pageItems).toEqual([]);
+  });
+});
+
+describe("computeStudyDays", () => {
+  it("returns study seconds for each day of the month that has study time", () => {
+    const sessions = [
+      mkSession({ startTs: new Date(2026, 9, 3, 9).getTime() }),
+      mkSession({ startTs: new Date(2026, 9, 3, 18).getTime() }),
+      mkSession({ startTs: new Date(2026, 9, 17, 20).getTime() }),
+      mkSession({ startTs: new Date(2026, 9, 20).getTime(), studySeconds: 0 }),
+      mkSession({ startTs: new Date(2026, 8, 5).getTime() }),
+    ];
+    const days = computeStudyDays(sessions, 2026, 9);
+    expect([...days.keys()].sort((a, b) => a - b)).toEqual([3, 17]);
+    expect(days.get(3)).toBe(3600); // two sessions of 1800s on the 3rd
+    expect(days.get(17)).toBe(1800);
   });
 });

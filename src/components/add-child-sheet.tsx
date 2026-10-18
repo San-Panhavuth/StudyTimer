@@ -118,10 +118,6 @@ export default function AddChildSheet({
             <video ref={videoRef} muted playsInline />
           </div>
         )}
-
-        <button className="sheet-close" onClick={closeAddSheet} style={{ marginTop: 12 }}>
-          Close
-        </button>
       </Sheet>
 
       <Sheet open={!!successEmail} onClose={() => setSuccessEmail(null)} title="Child added">
