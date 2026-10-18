@@ -1,4 +1,4 @@
-# Velea Rien (វេលារៀន)
+# Study Time
 
 Study timer + study log for students, with an optional Parent role that can
 watch a linked child's progress. Backed by Supabase (Postgres + Auth, RLS on

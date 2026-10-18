@@ -60,7 +60,15 @@ export async function getLinkedChildren(): Promise<LinkedChild[]> {
   const { data, error } = await supabase.rpc("get_linked_children");
   if (error) throw error;
 
-  type Row = { link_id: string; child_id: string; child_email: string; child_display_name: string; status: string; created_at: string };
+  type Row = {
+    link_id: string;
+    child_id: string;
+    child_email: string;
+    child_display_name: string;
+    status: string;
+    created_at: string;
+    require_photos: boolean;
+  };
   return ((data ?? []) as Row[]).map((r) => ({
     linkId: r.link_id,
     childId: r.child_id,
@@ -68,10 +76,29 @@ export async function getLinkedChildren(): Promise<LinkedChild[]> {
     childDisplayName: r.child_display_name,
     status: r.status as "pending" | "approved" | "rejected",
     createdAt: new Date(r.created_at).getTime(),
+    requirePhotos: r.require_photos,
   }));
 }
 
-function mapSessionRow(s: {
+// True if any approved parent linked to this child has turned on the photo
+// requirement. RLS (links_select_as_child) lets the child read their own links.
+export async function getPhotoRequirement(): Promise<boolean> {
+  const supabase = await createClient();
+  const userId = await requireUserId();
+
+  const { data, error } = await supabase
+    .from("parent_child_links")
+    .select("id")
+    .eq("child_id", userId)
+    .eq("status", "approved")
+    .eq("require_photos", true)
+    .limit(1);
+
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+type SessionRow = {
   id: string;
   subject_id: string;
   subject_name: string;
@@ -79,7 +106,13 @@ function mapSessionRow(s: {
   end_ts: string;
   study_seconds: number;
   break_seconds: number;
-}): StudySession {
+};
+
+const SESSION_COLUMNS = "id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds";
+const PHOTO_BUCKET = "session-photos";
+const SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+function mapSessionRow(s: SessionRow, images: string[] = []): StudySession {
   return {
     id: s.id,
     subjectId: s.subject_id,
@@ -88,7 +121,48 @@ function mapSessionRow(s: {
     endTs: new Date(s.end_ts).getTime(),
     studySeconds: s.study_seconds,
     breakSeconds: s.break_seconds,
+    images,
   };
+}
+
+// One query for all image rows + one batched signing call, rather than a
+// round trip per session.
+async function mapSessionsWithImages(rows: SessionRow[]): Promise<StudySession[]> {
+  if (rows.length === 0) return [];
+  const supabase = await createClient();
+
+  const { data: imageRows, error } = await supabase
+    .from("session_images")
+    .select("session_id, storage_path")
+    .in(
+      "session_id",
+      rows.map((r) => r.id),
+    )
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const urlByPath = new Map<string, string>();
+  const paths = (imageRows ?? []).map((i) => i.storage_path);
+  if (paths.length > 0) {
+    const { data: signed, error: signError } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+    if (signError) throw signError;
+    for (const entry of signed ?? []) {
+      if (entry.path && entry.signedUrl) urlByPath.set(entry.path, entry.signedUrl);
+    }
+  }
+
+  const imagesBySession = new Map<string, string[]>();
+  for (const i of imageRows ?? []) {
+    const url = urlByPath.get(i.storage_path);
+    if (!url) continue;
+    const list = imagesBySession.get(i.session_id) ?? [];
+    list.push(url);
+    imagesBySession.set(i.session_id, list);
+  }
+
+  return rows.map((r) => mapSessionRow(r, imagesBySession.get(r.id)));
 }
 
 // RLS (sessions_select_as_approved_parent) enforces that the caller is
@@ -99,12 +173,12 @@ export async function getChildSessions(childId: string): Promise<StudySession[]>
 
   const { data, error } = await supabase
     .from("sessions")
-    .select("id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds")
+    .select(SESSION_COLUMNS)
     .eq("user_id", childId)
     .order("start_ts", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map(mapSessionRow);
+  return mapSessionsWithImages(data ?? []);
 }
 
 export async function getSubjects(): Promise<Subject[]> {
@@ -170,10 +244,10 @@ export async function getSessions(): Promise<StudySession[]> {
 
   const { data, error } = await supabase
     .from("sessions")
-    .select("id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds")
+    .select(SESSION_COLUMNS)
     .eq("user_id", userId)
     .order("start_ts", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map(mapSessionRow);
+  return mapSessionsWithImages(data ?? []);
 }

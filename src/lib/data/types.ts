@@ -11,6 +11,8 @@ export type StudySession = {
   endTs: number;
   studySeconds: number;
   breakSeconds: number;
+  // Signed URLs (short-lived), newest upload last. Empty when none attached.
+  images: string[];
 };
 
 export type BreakInterval = {
@@ -43,4 +45,5 @@ export type LinkedChild = {
   childDisplayName: string;
   status: "pending" | "approved" | "rejected";
   createdAt: number;
+  requirePhotos: boolean;
 };

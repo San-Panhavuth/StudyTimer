@@ -18,7 +18,7 @@ async function siteOrigin() {
 
 function friendlyError(message: string) {
   if (/already registered/i.test(message)) return "That email is already registered — try logging in instead.";
-  if (/invalid login credentials/i.test(message)) return "Wrong email or password.";
+  if (/invalid login credentials|fetch failed/i.test(message)) return "Wrong email or password.";
   if (/email not confirmed/i.test(message)) return "Please confirm your email first — check your inbox.";
   if (/password should be at least/i.test(message)) return message;
   return message;

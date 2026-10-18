@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getActiveSession, getProfile } from "@/lib/data/fetch";
+import { getActiveSession, getPhotoRequirement, getProfile, getSubjects } from "@/lib/data/fetch";
 import ProfileMenu from "@/components/profile-menu";
 import BottomNav from "@/components/bottom-nav";
 import { ActiveSessionProvider } from "@/components/active-session-provider";
@@ -9,15 +9,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await getProfile();
   if (!profile) redirect("/login");
 
-  const activeSession = profile.role === "child" ? await getActiveSession() : null;
+  const isChild = profile.role === "child";
+  const [activeSession, subjects, requirePhotos] = isChild
+    ? await Promise.all([getActiveSession(), getSubjects(), getPhotoRequirement()])
+    : [null, null, false];
 
   return (
-    <ActiveSessionProvider initialActiveSession={activeSession} serverNow={Date.now()}>
+    <ActiveSessionProvider
+      initialActiveSession={activeSession}
+      initialSubjects={subjects}
+      requirePhotos={requirePhotos}
+      serverNow={Date.now()}
+    >
       <div className="app-shell">
         <header className="top-bar">
           <div className="wordmark">
-            <span className="khmer">វេលារៀន</span>
-            <span className="latin">Velea Rien</span>
+            <span className="khmer">Study Time</span>
           </div>
           <ProfileMenu displayName={profile.email || profile.displayName} role={profile.role} childCode={profile.childCode} />
         </header>

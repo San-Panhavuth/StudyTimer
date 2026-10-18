@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getChildSessions, requireUserId } from "@/lib/data/fetch";
 import type { ActiveSession, StudySession, Subject } from "@/lib/data/types";
 
+const PHOTO_BUCKET = "session-photos";
+const MAX_SESSION_PHOTOS = 5;
+
 export async function fetchChildSessionsAction(childId: string): Promise<StudySession[]> {
   return getChildSessions(childId);
 }
@@ -38,6 +41,14 @@ export async function requestLinkChildAction(code: string): Promise<{ email: str
   }
 
   return { email: child.email };
+}
+
+export async function setChildPhotoRequirementAction(linkId: string, enabled: boolean): Promise<void> {
+  const supabase = await createClient();
+  await requireUserId();
+
+  const { error } = await supabase.rpc("set_child_photo_requirement", { p_link_id: linkId, p_enabled: enabled });
+  if (error) throw error;
 }
 
 export async function removeChildLinkAction(linkId: string): Promise<void> {
@@ -107,6 +118,12 @@ export async function deleteSubjectAction(subjectId: string): Promise<void> {
 export async function deleteSessionAction(sessionId: string): Promise<void> {
   const supabase = await createClient();
   const userId = await requireUserId();
+
+  // Cascade removes the session_images rows, but not the Storage objects —
+  // clean those up first so they don't linger orphaned.
+  const { data: images } = await supabase.from("session_images").select("storage_path").eq("session_id", sessionId);
+  const paths = (images ?? []).map((i) => i.storage_path);
+  if (paths.length > 0) await supabase.storage.from(PHOTO_BUCKET).remove(paths);
 
   const { error } = await supabase.from("sessions").delete().eq("id", sessionId).eq("user_id", userId);
 
@@ -196,11 +213,16 @@ export async function toggleBreakAction(current: ActiveSession): Promise<ActiveS
   };
 }
 
-export async function stopSessionAction(current: ActiveSession): Promise<void> {
+// `stoppedAt` lets the client pin the end time to the moment the user hit
+// "Yes, I'm done", so time spent choosing photos afterwards isn't counted as
+// study time. Clamped so it can't be in the future or before the start.
+export async function stopSessionAction(current: ActiveSession, stoppedAt?: number): Promise<string> {
   const supabase = await createClient();
   const userId = await requireUserId();
 
-  const now = new Date();
+  const nowMs = Date.now();
+  const endMs = stoppedAt ? Math.min(nowMs, Math.max(current.startTs, stoppedAt)) : nowMs;
+  const now = new Date(endMs);
   const breakIntervals = current.breakIntervals.map((b) => ({
     start: new Date(b.start).toISOString(),
     end: new Date(b.end).toISOString(),
@@ -217,18 +239,43 @@ export async function stopSessionAction(current: ActiveSession): Promise<void> {
   const totalSec = (now.getTime() - current.startTs) / 1000;
   const studySec = Math.max(0, totalSec - totalBreakSec);
 
-  const { error: insertError } = await supabase.from("sessions").insert({
-    user_id: userId,
-    subject_id: current.subjectId,
-    subject_name: current.subject,
-    start_ts: new Date(current.startTs).toISOString(),
-    end_ts: now.toISOString(),
-    study_seconds: Math.round(studySec),
-    break_seconds: Math.round(totalBreakSec),
-  });
+  const { data: inserted, error: insertError } = await supabase
+    .from("sessions")
+    .insert({
+      user_id: userId,
+      subject_id: current.subjectId,
+      subject_name: current.subject,
+      start_ts: new Date(current.startTs).toISOString(),
+      end_ts: now.toISOString(),
+      study_seconds: Math.round(studySec),
+      break_seconds: Math.round(totalBreakSec),
+    })
+    .select("id")
+    .single();
 
   if (insertError) throw insertError;
 
   const { error: deleteError } = await supabase.from("active_session").delete().eq("user_id", userId);
   if (deleteError) throw deleteError;
+
+  return inserted.id;
+}
+
+// The client uploads straight to Storage (photos are too big for a Server
+// Action body), then calls this to record them against the session.
+export async function attachSessionImagesAction(sessionId: string, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  if (paths.length > MAX_SESSION_PHOTOS) throw new Error(`At most ${MAX_SESSION_PHOTOS} photos per session.`);
+
+  const supabase = await createClient();
+  const userId = await requireUserId();
+
+  const prefix = `${userId}/${sessionId}/`;
+  if (!paths.every((p) => p.startsWith(prefix) && !p.includes(".."))) throw new Error("Invalid photo path.");
+
+  const { error } = await supabase
+    .from("session_images")
+    .insert(paths.map((storage_path) => ({ session_id: sessionId, user_id: userId, storage_path })));
+
+  if (error) throw error;
 }

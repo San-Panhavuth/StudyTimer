@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
-import { removeChildLinkAction } from "../actions";
+import { removeChildLinkAction, setChildPhotoRequirementAction } from "../actions";
 import type { LinkedChild } from "@/lib/data/types";
 
 export default function ChildrenList({ initialChildren }: { initialChildren: LinkedChild[] }) {
@@ -21,6 +21,21 @@ export default function ChildrenList({ initialChildren }: { initialChildren: Lin
         setChildren((prev) => prev.filter((c) => c.linkId !== target.linkId));
       } catch {
         setError("Couldn't remove that child.");
+      }
+    });
+  }
+
+  function togglePhotos(c: LinkedChild) {
+    const next = !c.requirePhotos;
+    setError(null);
+    // Optimistic; rolled back if the save fails.
+    setChildren((prev) => prev.map((x) => (x.linkId === c.linkId ? { ...x, requirePhotos: next } : x)));
+    startTransition(async () => {
+      try {
+        await setChildPhotoRequirementAction(c.linkId, next);
+      } catch {
+        setChildren((prev) => prev.map((x) => (x.linkId === c.linkId ? { ...x, requirePhotos: !next } : x)));
+        setError("Couldn't update that setting.");
       }
     });
   }
@@ -54,6 +69,17 @@ export default function ChildrenList({ initialChildren }: { initialChildren: Lin
                   <path d="M14 11v6"></path>
                   <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
                 </svg>
+              </button>
+            </div>
+            <div className="child-row">
+              <span className="field-label">Require photos when session ends</span>
+              <button
+                type="button"
+                className={`chip-toggle${c.requirePhotos ? " on" : ""}`}
+                onClick={() => togglePhotos(c)}
+                aria-pressed={c.requirePhotos}
+              >
+                {c.requirePhotos ? "On" : "Off"}
               </button>
             </div>
           </div>

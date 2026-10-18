@@ -1,17 +1,14 @@
-import { redirect } from "next/navigation";
-import { getProfile, getSubjects } from "@/lib/data/fetch";
 import TimerClient from "./timer-client";
 
-export default async function TimerPage() {
-  const profile = await getProfile();
-  if (profile?.role === "parent") redirect("/children");
-
-  const subjects = await getSubjects();
-
+// No data fetching here on purpose: subjects, the active session and the
+// photo requirement come from the (app) layout via ActiveSessionProvider, so
+// switching back to this tab renders instantly instead of re-fetching.
+// (Parent accounts are redirected away client-side in TimerClient.)
+export default function TimerPage() {
   return (
     <section className="panel">
       <div className="timer-stage">
-        <TimerClient initialSubjects={subjects} />
+        <TimerClient />
       </div>
     </section>
   );

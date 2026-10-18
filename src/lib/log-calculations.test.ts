@@ -11,6 +11,7 @@ function mkSession(overrides: Partial<StudySession>): StudySession {
     endTs: Date.now(),
     studySeconds: 1800,
     breakSeconds: 300,
+    images: [],
     ...overrides,
   };
 }

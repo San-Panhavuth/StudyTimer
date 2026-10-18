@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Sheet from "@/components/sheet";
+import SessionPhotos from "@/components/session-photos";
 import PieChart from "@/components/pie-chart";
 import BarChart from "@/components/bar-chart";
 import { fmtDateRange, fmtMin } from "@/lib/format";
@@ -209,6 +210,7 @@ export default function ChildrenLogClient({
                       </span>
                     </div>
                   </div>
+                  <SessionPhotos images={s.images} />
                 </div>
               );
             })

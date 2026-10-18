@@ -1,12 +1,16 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Sheet from "@/components/sheet";
+import PhotoSheet from "@/components/photo-sheet";
+import { uploadSessionPhotos } from "@/lib/photos";
 import { fmtHMS, fmtMin } from "@/lib/format";
 import type { Subject } from "@/lib/data/types";
 import { useActiveSession } from "@/components/active-session-provider";
 import {
   addSubjectAction,
+  attachSessionImagesAction,
   deleteSubjectAction,
   renameSubjectAction,
   startSessionAction,
@@ -14,12 +18,19 @@ import {
   toggleBreakAction,
 } from "../actions";
 
-export default function TimerClient({ initialSubjects }: { initialSubjects: Subject[] }) {
-  const [subjects, setSubjects] = useState(initialSubjects);
+export default function TimerClient() {
+  const router = useRouter();
   // Lives in ActiveSessionProvider (at the layout level) rather than here,
   // so the countdown keeps ticking in the background even when you
-  // navigate away from the Timer page — see studying-badge.tsx.
-  const { active, setActive, now } = useActiveSession();
+  // navigate away from the Timer page — see studying-badge.tsx. Subjects
+  // live there too so switching tabs doesn't refetch or reset them.
+  const { active, setActive, now, subjects: providerSubjects, setSubjects, requirePhotos } = useActiveSession();
+  const subjects = useMemo(() => providerSubjects ?? [], [providerSubjects]);
+  const isParent = providerSubjects === null;
+
+  useEffect(() => {
+    if (isParent) router.replace("/children");
+  }, [isParent, router]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -30,14 +41,31 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
+  // Photo step of stopping: the end time is pinned when the user confirms,
+  // and the session is only written once photos are chosen. If the upload
+  // fails after the session is saved, savedSessionIdRef lets a retry skip
+  // straight to re-uploading instead of saving a duplicate session.
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  // Set while the photo sheet is open: freezes the on-screen clock at the
+  // moment the user confirmed stop (and is the end time saved).
+  const [stoppedAt, setStoppedAt] = useState<number | null>(null);
+  const savedSessionIdRef = useRef<string | null>(null);
+
+  const sortedSubjects = useMemo(
+    () => [...subjects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [subjects],
+  );
 
   let studySec = 0;
   let breakSec = 0;
   if (active) {
     const totalBreakSec = active.breakIntervals.reduce((sum, b) => sum + (b.end - b.start) / 1000, 0);
-    const ongoing = active.status === "break" && active.breakStart ? (now - active.breakStart) / 1000 : 0;
+    const clock = stoppedAt ?? now;
+    const ongoing = active.status === "break" && active.breakStart ? (clock - active.breakStart) / 1000 : 0;
     breakSec = totalBreakSec + ongoing;
-    studySec = Math.max(0, (now - active.startTs) / 1000 - breakSec);
+    studySec = Math.max(0, (clock - active.startTs) / 1000 - breakSec);
   }
   const onBreak = active?.status === "break";
 
@@ -126,9 +154,48 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
     });
   }
 
+  async function handlePhotoSubmit(files: File[]) {
+    if (!active && !savedSessionIdRef.current) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      if (!savedSessionIdRef.current && active) {
+        savedSessionIdRef.current = await stopSessionAction(active, stoppedAt ?? undefined);
+        setActive(null);
+        setStoppedAt(null);
+      }
+      const sessionId = savedSessionIdRef.current!;
+      const paths = await uploadSessionPhotos(sessionId, files);
+      await attachSessionImagesAction(sessionId, paths);
+      savedSessionIdRef.current = null;
+      setPhotoOpen(false);
+    } catch {
+      setPhotoError(
+        savedSessionIdRef.current
+          ? "Session saved, but the photos didn't upload. Try again."
+          : "Couldn't save that session. Try again.",
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function handlePhotoCancel() {
+    savedSessionIdRef.current = null;
+    setStoppedAt(null); // resume the live clock
+    setPhotoOpen(false);
+    setPhotoError(null);
+  }
+
   function handleConfirmStop() {
     if (!active) return;
     setConfirmOpen(false);
+    if (requirePhotos) {
+      setStoppedAt(Date.now());
+      setPhotoError(null);
+      setPhotoOpen(true);
+      return;
+    }
     startTransition(async () => {
       try {
         await stopSessionAction(active);
@@ -138,6 +205,8 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
       }
     });
   }
+
+  if (isParent) return null;
 
   return (
     <div className={`card timer-card${onBreak ? " on-break" : ""}`}>
@@ -205,9 +274,10 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
         }
       >
         <div className="sheet-list">
-          {subjects.map((s) =>
+          {sortedSubjects.map((s, index) =>
             editingSubjectId === s.id ? (
               <div key={s.id} className="sheet-row sheet-row-editing">
+                <span className="sheet-row-num">{index + 1}.</span>
                 <input
                   className="sheet-row-edit-input"
                   value={editSubjectName}
@@ -235,6 +305,7 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
             ) : (
               <div key={s.id} className="sheet-row">
                 <button type="button" className="sheet-row-main" onClick={() => pickSubject(s.id, s.name)}>
+                  <span className="sheet-row-num">{index + 1}.</span>
                   <span>{s.name}</span>
                 </button>
                 <div className="sheet-row-actions">
@@ -296,6 +367,14 @@ export default function TimerClient({ initialSubjects }: { initialSubjects: Subj
           Keep studying
         </button>
       </Sheet>
+
+      <PhotoSheet
+        open={photoOpen}
+        busy={photoBusy}
+        error={photoError}
+        onSubmit={handlePhotoSubmit}
+        onCancel={handlePhotoCancel}
+      />
 
       <Sheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete subject?">
         <p>

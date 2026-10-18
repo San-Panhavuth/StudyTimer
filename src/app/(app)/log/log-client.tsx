@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Sheet from "@/components/sheet";
+import SessionPhotos from "@/components/session-photos";
 import PieChart from "@/components/pie-chart";
 import BarChart from "@/components/bar-chart";
 import { fmtDate, fmtDateRange, fmtMin } from "@/lib/format";
@@ -205,6 +206,7 @@ export default function LogClient({ sessions }: { sessions: StudySession[] }) {
                       </span>
                     </div>
                   </div>
+                  <SessionPhotos images={s.images} />
                 </div>
               );
             })

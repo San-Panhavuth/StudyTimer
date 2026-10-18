@@ -4,8 +4,7 @@ export default function AuthCodeErrorPage() {
   return (
     <div className="auth-shell">
       <div className="auth-wordmark">
-        <span className="khmer">វេលារៀន</span>
-        <span className="latin">Velea Rien</span>
+        <span className="khmer">Study Time</span>
       </div>
       <div className="auth-card">
         <h1>Link expired</h1>
