@@ -1,0 +1,20 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+// PKCE return leg: Supabase email links (confirm signup, reset password)
+// land here with ?code=, which we swap for a session cookie.
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const next = searchParams.get("next") ?? "/timer";
+
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      return NextResponse.redirect(`${origin}${next.startsWith("/") ? next : "/timer"}`);
+    }
+  }
+
+  return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+}

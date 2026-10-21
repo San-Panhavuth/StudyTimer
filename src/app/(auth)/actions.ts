@@ -16,11 +16,18 @@ async function siteOrigin() {
   return `${proto}://${host}`;
 }
 
+const STRONG_PASSWORD_MSG =
+  "Password needs 8+ characters with upper and lower case letters, a number and a symbol.";
+
+function isStrongPassword(p: string) {
+  return p.length >= 8 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
+}
+
 function friendlyError(message: string) {
   if (/already registered/i.test(message)) return "That email is already registered — try logging in instead.";
   if (/invalid login credentials|fetch failed/i.test(message)) return "Wrong email or password.";
   if (/email not confirmed/i.test(message)) return "Please confirm your email first — check your inbox.";
-  if (/password should be at least/i.test(message)) return message;
+  if (/password should|weak password|password.*contain/i.test(message)) return STRONG_PASSWORD_MSG;
   return message;
 }
 
@@ -31,7 +38,7 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   const role = formData.get("role") === "parent" ? "parent" : "child";
 
   if (!email || !password) return { error: "Enter an email and password." };
-  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (!isStrongPassword(password)) return { error: STRONG_PASSWORD_MSG };
   if (password !== confirmPassword) return { error: "Passwords don't match." };
 
   const supabase = await createClient();
@@ -40,7 +47,7 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${origin}/timer`, data: { role } },
+    options: { emailRedirectTo: `${origin}/auth/callback?next=/timer`, data: { role } },
   });
 
   if (error) return { error: friendlyError(error.message) };
@@ -79,7 +86,7 @@ export async function requestPasswordResetAction(
   const origin = await siteOrigin();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/reset-password`,
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
   });
 
   if (error) return { error: friendlyError(error.message) };
@@ -91,7 +98,7 @@ export async function updatePasswordAction(_prev: AuthFormState, formData: FormD
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (!isStrongPassword(password)) return { error: STRONG_PASSWORD_MSG };
   if (password !== confirmPassword) return { error: "Passwords don't match." };
 
   const supabase = await createClient();
