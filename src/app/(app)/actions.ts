@@ -1,7 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getChildSessions, requireUserId } from "@/lib/data/fetch";
+import { after } from "next/server";
+import { getChildSessions, getProfile, requireUserId } from "@/lib/data/fetch";
+import { fmtMin } from "@/lib/format";
+import { sendTelegramMessage } from "@/lib/telegram";
 import type { ActiveSession, StudySession, Subject } from "@/lib/data/types";
 
 const PHOTO_BUCKET = "session-photos";
@@ -287,6 +290,22 @@ export async function stopSessionAction(current: ActiveSession, stoppedAt?: numb
 
   const { error: deleteError } = await supabase.from("active_session").delete().eq("user_id", userId);
   if (deleteError) throw deleteError;
+
+  // Tell any linked parent on Telegram. Runs after the response so stopping
+  // isn't slowed down, and a failure here never affects the saved session.
+  const subjects = [current.subject, ...current.extraSubjects].join(", ");
+  after(async () => {
+    try {
+      const [{ data: chats }, profile] = await Promise.all([supabase.rpc("get_parent_telegram_chats"), getProfile()]);
+      const who = profile?.email || profile?.displayName || "Your child";
+      const text = `${who} finished a study session
+${subjects}
+Study ${fmtMin(studySec)} · Break ${fmtMin(totalBreakSec)}`;
+      await Promise.allSettled((chats ?? []).map((c: { chat_id: number }) => sendTelegramMessage(c.chat_id, text)));
+    } catch {
+      // best effort
+    }
+  });
 
   return inserted.id;
 }

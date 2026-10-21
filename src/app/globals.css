@@ -1096,7 +1096,8 @@ svg.icon {
   top: 62px;
   right: 16px;
   z-index: 31;
-  min-width: 220px;
+  width: 270px;
+  max-width: calc(100vw - 32px);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1158,11 +1159,22 @@ svg.icon {
   gap: 8px;
   margin-top: 4px;
 }
+.dd-child-id-row .icon-btn {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 6px;
+  margin-right: -6px;
+}
 .dd-child-id-row code {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--font-mono), monospace;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   color: var(--ink);
 }
 

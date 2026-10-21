@@ -34,7 +34,7 @@ export default function ProfileMenu({
   async function copyChildCode() {
     if (!childCode) return;
     try {
-      await navigator.clipboard.writeText(childCode);
+      await navigator.clipboard.writeText(role === "parent" ? `/setAccount ${childCode}` : childCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -70,12 +70,12 @@ export default function ProfileMenu({
       </button>
 
       <div ref={menuRef} className={`profile-dropdown${open ? " open" : ""}`}>
-        {role === "child" && childCode && (
+        {childCode && (
           <div className="dd-child-id">
-            <span className="dd-child-id-label">Your Child ID</span>
+            <span className="dd-child-id-label">{role === "parent" ? "Your Parent ID" : "Your Child ID"}</span>
             <div className="dd-child-id-row">
-              <code>{childCode}</code>
-              <button type="button" className="icon-btn" onClick={copyChildCode} aria-label="Copy Child ID">
+              <code>{role === "parent" ? `/setAccount ${childCode}` : childCode}</code>
+              <button type="button" className="icon-btn" onClick={copyChildCode} aria-label={role === "parent" ? "Copy setAccount command" : "Copy Child ID"}>
                 {copied ? (
                   <svg className="icon" viewBox="0 0 24 24">
                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -88,14 +88,16 @@ export default function ProfileMenu({
                 )}
               </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ width: "100%", marginTop: 8 }}
-              onClick={openQr}
-            >
-              Show QR Code
-            </button>
+            {role === "child" && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ width: "100%", marginTop: 8 }}
+                onClick={openQr}
+              >
+                Show QR Code
+              </button>
+            )}
           </div>
         )}
         <form action={signOutAction}>
