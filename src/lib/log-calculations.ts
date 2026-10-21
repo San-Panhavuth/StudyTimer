@@ -10,9 +10,24 @@ export type LogFilters = {
   endDate: number | null; // day-start ms, inclusive (whole day)
 };
 
+// A session's study time is split evenly across every subject it covered
+// (the first one plus any added mid-session), e.g. 1h of Khmer + Math is
+// 30m each.
+export function sessionSubjects(s: StudySession): string[] {
+  return [s.subject, ...s.extraSubjects.filter((n) => n !== s.subject)];
+}
+
+// Fraction of the session that belongs to the selected subjects (all of it
+// when none are selected).
+function subjectShare(s: StudySession, selected: string[]): number {
+  const names = sessionSubjects(s);
+  if (selected.length === 0) return 1;
+  return names.filter((n) => selected.includes(n)).length / names.length;
+}
+
 export function filterSessions(sessions: StudySession[], filters: LogFilters): StudySession[] {
   return sessions.filter((s) => {
-    if (filters.subjects.length > 0 && !filters.subjects.includes(s.subject)) return false;
+    if (filters.subjects.length > 0 && !sessionSubjects(s).some((n) => filters.subjects.includes(n))) return false;
     if (filters.startDate != null && s.startTs < filters.startDate) return false;
     if (filters.endDate != null && s.startTs >= filters.endDate + DAY_MS) return false;
     return true;
@@ -26,7 +41,10 @@ const BREAK_LABEL = "Break";
 export function computePieEntries(sessions: StudySession[], includeBreak: boolean): PieEntry[] {
   const totals = new Map<string, number>();
   for (const s of sessions) {
-    totals.set(s.subject, (totals.get(s.subject) ?? 0) + s.studySeconds);
+    const names = sessionSubjects(s);
+    for (const name of names) {
+      totals.set(name, (totals.get(name) ?? 0) + s.studySeconds / names.length);
+    }
     if (includeBreak && s.breakSeconds > 0) {
       totals.set(BREAK_LABEL, (totals.get(BREAK_LABEL) ?? 0) + s.breakSeconds);
     }
@@ -82,8 +100,9 @@ export function computeBarWeeks(sessions: StudySession[], filters: LogFilters, n
   for (const s of sessions) {
     for (let i = 0; i < weeks.length; i++) {
       if (s.startTs >= weeks[i].start && s.startTs < weeks[i].end) {
-        studyTotals[i] += s.studySeconds / 60;
-        breakTotals[i] += s.breakSeconds / 60;
+        const share = subjectShare(s, filters.subjects);
+        studyTotals[i] += (s.studySeconds * share) / 60;
+        breakTotals[i] += (s.breakSeconds * share) / 60;
         break;
       }
     }

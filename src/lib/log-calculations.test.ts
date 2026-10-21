@@ -11,6 +11,7 @@ function mkSession(overrides: Partial<StudySession>): StudySession {
     endTs: Date.now(),
     studySeconds: 1800,
     breakSeconds: 300,
+    extraSubjects: [],
     images: [],
     ...overrides,
   };
@@ -174,5 +175,25 @@ describe("computeStudyDays", () => {
     expect([...days.keys()].sort((a, b) => a - b)).toEqual([3, 17]);
     expect(days.get(3)).toBe(3600); // two sessions of 1800s on the 3rd
     expect(days.get(17)).toBe(1800);
+  });
+});
+
+describe("multi-subject sessions", () => {
+  const split = mkSession({ subject: "Khmer", extraSubjects: ["Math"], studySeconds: 3600, breakSeconds: 0 });
+
+  it("splits study time evenly in the pie", () => {
+    const pie = computePieEntries([split], false);
+    expect(pie.map((p) => [p.label, p.minutes]).sort()).toEqual([["Khmer", 30], ["Math", 30]]);
+  });
+
+  it("matches the subject filter on any of its subjects", () => {
+    const filters = { subjects: ["Math"], startDate: null, endDate: null };
+    expect(filterSessions([split], filters)).toHaveLength(1);
+  });
+
+  it("counts only the selected subject's share in the bars", () => {
+    const filters = { subjects: ["Math"], startDate: null, endDate: null };
+    const weeks = computeBarWeeks([split], filters, Date.now());
+    expect(weeks.reduce((t, w) => t + w.studyMinutes, 0)).toBeCloseTo(30);
   });
 });

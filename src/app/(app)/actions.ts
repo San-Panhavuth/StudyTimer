@@ -140,6 +140,7 @@ export async function startSessionAction(subjectId: string, subjectName: string)
     user_id: userId,
     subject_id: subjectId,
     subject_name: subjectName,
+    extra_subjects: [],
     start_ts: startTs,
     break_intervals: [],
     break_start: null,
@@ -152,11 +153,38 @@ export async function startSessionAction(subjectId: string, subjectName: string)
   return {
     subjectId,
     subject: subjectName,
+    extraSubjects: [],
     startTs: new Date(startTs).getTime(),
     breakIntervals: [],
     breakStart: null,
     status: "running",
   };
+}
+
+// Replaces the running session's subject list. The first entry is the
+// primary subject (charts and the sessions row key off it); the rest are
+// kept in order as extras. Time is split evenly across all of them when
+// charts are drawn, so there is nothing else to update here.
+export async function setSessionSubjectsAction(current: ActiveSession, picked: Subject[]): Promise<ActiveSession> {
+  if (picked.length === 0) throw new Error("A session needs at least one subject.");
+
+  const supabase = await createClient();
+  const userId = await requireUserId();
+
+  const [primary, ...rest] = picked;
+  const extraSubjects = rest.map((s) => s.name);
+  const { error } = await supabase
+    .from("active_session")
+    .update({
+      subject_id: primary.id,
+      subject_name: primary.name,
+      extra_subjects: extraSubjects,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return { ...current, subjectId: primary.id, subject: primary.name, extraSubjects };
 }
 
 // toggleBreakAction and stopSessionAction take the caller's current
@@ -206,6 +234,7 @@ export async function toggleBreakAction(current: ActiveSession): Promise<ActiveS
   return {
     subjectId: current.subjectId,
     subject: current.subject,
+    extraSubjects: current.extraSubjects,
     startTs: current.startTs,
     breakIntervals: nextIntervals.map((b) => ({ start: new Date(b.start).getTime(), end: new Date(b.end).getTime() })),
     breakStart: nextBreakStart ? new Date(nextBreakStart).getTime() : null,
@@ -249,6 +278,7 @@ export async function stopSessionAction(current: ActiveSession, stoppedAt?: numb
       end_ts: now.toISOString(),
       study_seconds: Math.round(studySec),
       break_seconds: Math.round(totalBreakSec),
+      extra_subjects: current.extraSubjects,
     })
     .select("id")
     .single();

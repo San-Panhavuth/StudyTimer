@@ -11,6 +11,8 @@ export type StudySession = {
   endTs: number;
   studySeconds: number;
   breakSeconds: number;
+  // Other subjects covered in the same session, in order (display only).
+  extraSubjects: string[];
   // Signed URLs (short-lived), newest upload last. Empty when none attached.
   images: string[];
 };
@@ -23,6 +25,7 @@ export type BreakInterval = {
 export type ActiveSession = {
   subjectId: string;
   subject: string;
+  extraSubjects: string[];
   startTs: number;
   breakIntervals: BreakInterval[];
   breakStart: number | null;

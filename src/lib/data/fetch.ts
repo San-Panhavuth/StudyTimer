@@ -106,9 +106,10 @@ type SessionRow = {
   end_ts: string;
   study_seconds: number;
   break_seconds: number;
+  extra_subjects: string[] | null;
 };
 
-const SESSION_COLUMNS = "id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds";
+const SESSION_COLUMNS = "id, subject_id, subject_name, start_ts, end_ts, study_seconds, break_seconds, extra_subjects";
 const PHOTO_BUCKET = "session-photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
@@ -121,6 +122,7 @@ function mapSessionRow(s: SessionRow, images: string[] = []): StudySession {
     endTs: new Date(s.end_ts).getTime(),
     studySeconds: s.study_seconds,
     breakSeconds: s.break_seconds,
+    extraSubjects: s.extra_subjects ?? [],
     images,
   };
 }
@@ -238,7 +240,7 @@ export async function getActiveSession(): Promise<ActiveSession | null> {
 
   const { data, error } = await supabase
     .from("active_session")
-    .select("subject_id, subject_name, start_ts, break_intervals, break_start, status")
+    .select("subject_id, subject_name, extra_subjects, start_ts, break_intervals, break_start, status")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -255,6 +257,7 @@ export async function getActiveSession(): Promise<ActiveSession | null> {
   return {
     subjectId: data.subject_id,
     subject: data.subject_name,
+    extraSubjects: data.extra_subjects ?? [],
     startTs: new Date(data.start_ts).getTime(),
     breakIntervals,
     breakStart: data.break_start ? new Date(data.break_start).getTime() : null,

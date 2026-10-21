@@ -54,12 +54,33 @@ export default function TabPager({
       el.style.setProperty("--pager-h", `${Math.max(0, window.innerHeight - top - navH)}px`);
     };
     update();
+    // The pager's top moves when anything above it changes size (web fonts
+    // finishing loading, the studying badge appearing) without the body
+    // necessarily resizing, so watch those elements too.
     const ro = new ResizeObserver(update);
-    ro.observe(document.body);
+    const watch = () => {
+      ro.disconnect();
+      ro.observe(document.body);
+      const bar = document.querySelector(".top-bar");
+      if (bar) ro.observe(bar);
+      for (const sib of Array.from(el.parentElement?.children ?? [])) {
+        if (sib !== el) ro.observe(sib);
+      }
+    };
+    watch();
+    const mo = new MutationObserver(() => {
+      watch();
+      update();
+    });
+    if (el.parentElement) mo.observe(el.parentElement, { childList: true });
+    void document.fonts?.ready.then(update);
     window.addEventListener("resize", update);
+    window.addEventListener("load", update);
     return () => {
       ro.disconnect();
+      mo.disconnect();
       window.removeEventListener("resize", update);
+      window.removeEventListener("load", update);
     };
   }, []);
 

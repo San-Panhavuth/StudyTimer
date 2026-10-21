@@ -82,6 +82,7 @@ export const sessions = pgTable(
     endTs: timestamp("end_ts", { withTimezone: true }).notNull(),
     studySeconds: integer("study_seconds").notNull().default(0),
     breakSeconds: integer("break_seconds").notNull().default(0),
+    extraSubjects: text("extra_subjects").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -135,6 +136,7 @@ export const activeSession = pgTable(
     startTs: timestamp("start_ts", { withTimezone: true }).notNull(),
     breakIntervals: jsonb("break_intervals").notNull().default(sql`'[]'::jsonb`),
     breakStart: timestamp("break_start", { withTimezone: true }),
+    extraSubjects: text("extra_subjects").array().notNull().default(sql`'{}'::text[]`),
     status: text("status").notNull().default("running"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

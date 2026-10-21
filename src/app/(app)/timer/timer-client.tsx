@@ -12,6 +12,7 @@ import {
   attachSessionImagesAction,
   deleteSubjectAction,
   renameSubjectAction,
+  setSessionSubjectsAction,
   startSessionAction,
   stopSessionAction,
   toggleBreakAction,
@@ -51,6 +52,12 @@ export default function TimerClient() {
     [subjects],
   );
 
+  // Subjects in the running session, primary first.
+  const inSession = useMemo(
+    () => (active ? [active.subject, ...active.extraSubjects] : []),
+    [active],
+  );
+
   let studySec = 0;
   let breakSec = 0;
   if (active) {
@@ -72,6 +79,30 @@ export default function TimerClient() {
       } catch {
         setError("Couldn't start the timer. Try again.");
       }
+    });
+  }
+
+  // Ticking a subject in the running session adds it; unticking removes it
+  // (at least one must stay). Shows right away, saves in the background and
+  // rolls back if the save fails.
+  function toggleSessionSubject(subject: Subject) {
+    if (!active) return;
+    const names = inSession;
+    const picked = names.includes(subject.name)
+      ? names.filter((n) => n !== subject.name)
+      : [...names, subject.name];
+    if (picked.length === 0) return;
+    const list = picked
+      .map((n) => subjects.find((s) => s.name === n))
+      .filter((s): s is Subject => !!s);
+    if (list.length !== picked.length) return;
+
+    const before = active;
+    setError(null);
+    setActive({ ...before, subjectId: list[0].id, subject: list[0].name, extraSubjects: list.slice(1).map((s) => s.name) });
+    void setSessionSubjectsAction(before, list).catch(() => {
+      setActive(before);
+      setError("Couldn't update the subjects. Try again.");
     });
   }
 
@@ -201,13 +232,25 @@ export default function TimerClient() {
 
   return (
     <div className={`card timer-card${onBreak ? " on-break" : ""}`}>
-      <div className={`status-pill${active ? " shown" : ""} ${onBreak ? "on-break" : active ? "live" : ""}`}>
-        <span className="dot"></span>
-        {onBreak ? "On Break" : active ? "Studying" : "Idle"}
+      <div className="status-row">
+        <div className={`status-pill${active ? " shown" : ""} ${onBreak ? "on-break" : active ? "live" : ""}`}>
+          <span className="dot"></span>
+          {onBreak ? "On Break" : active ? "Studying" : "Idle"}
+        </div>
+        {active && !onBreak && (
+          <button
+            type="button"
+            className="add-subject-btn"
+            onClick={() => setPickerOpen(true)}
+            disabled={pending}
+            aria-label="Add another subject"
+          >
+            +
+          </button>
+        )}
       </div>
 
-
-      <div className="subject-name">{active ? active.subject : " "}</div>
+      <div className="subject-name">{active ? [active.subject, ...active.extraSubjects].join(", ") : " "}</div>
       <div className="big-time">{fmtHMS(onBreak ? breakSec : studySec)}</div>
 
       <div className={`sub-times${active ? " shown" : ""}`}>
@@ -257,7 +300,7 @@ export default function TimerClient() {
       <Sheet
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Pick a subject"
+        title={active ? "Subjects in this session" : "Pick a subject"}
         headerActions={
           <button type="button" className="sheet-header-btn primary" onClick={() => setAddOpen(true)}>
             Add
@@ -295,8 +338,22 @@ export default function TimerClient() {
               </div>
             ) : (
               <div key={s.id} className="sheet-row">
-                <button type="button" className="sheet-row-main" onClick={() => pickSubject(s.id, s.name)}>
-                  <span className="sheet-row-num">{index + 1}.</span>
+                <button
+                  type="button"
+                  className="sheet-row-main"
+                  onClick={() => (active ? toggleSessionSubject(s) : pickSubject(s.id, s.name))}
+                >
+                  {active ? (
+                    <span className={`sheet-check${inSession.includes(s.name) ? " on" : ""}`} aria-hidden="true">
+                      {inSession.includes(s.name) && (
+                        <svg className="icon" viewBox="0 0 24 24">
+                          <polyline points="20 6 9 17 4 12" pathLength="1"></polyline>
+                        </svg>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="sheet-row-num">{index + 1}.</span>
+                  )}
                   <span>{s.name}</span>
                 </button>
                 <div className="sheet-row-actions">
